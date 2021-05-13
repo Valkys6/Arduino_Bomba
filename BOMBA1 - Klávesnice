@@ -1,0 +1,45 @@
+/* BOMBA1 - s klávesnicí
+ *  
+ *  Projekt pro https://svctrutnov.cz/
+ *  Více k projektu na: https://github.com/Valkys6/Arduino_BombaSVC
+ *  
+ *  Soupis součástek:
+ *    1) LCD displej 1602 s I2C převodníkem - zelený (Pinout: A4(18) = SDA; A5(19) = SCL; VCC; GND)
+ *    2) LED displej 7 segmentovýy, 8 znaků MAX7219 - červený (Pinout: A0(14) = CS/load; A1(15) = CLK; A2(16) = DataIn)
+ *    3) 4x4 Maticová tlačítková plastová klávesnice (Pinout: D2-D9)
+ *    4) Buzzer 5V (Pinout: A3(17) = Signal; VCC; GND (v budoucnu výměna za 2x3W zesilovač + reproduktor)
+ *    5) Tlačítko + Rezistor 220R (Pinout: D12; VCC; GND)
+ *    6) RGB panel NEOPIXEL 20LED  + Rezistor 220R (Pinout: D12; VCC; GND)
+ *    
+ *  Popis chovani kodu:
+ *    1) 
+ */
+
+// Použíté knihovny:
+#include<LiquidCrystal_I2C_Hangul.h>
+#include<Wire.h>
+#include <Adafruit_NeoPixel.h>
+
+// Definice pozic digitalních vstupu
+
+
+// Definice pozic digitalních výstupů
+#define PIN 11
+#define NUM_LEDS 20
+// Parameter 1 = number of pixels in strip
+// Parameter 2 = pin number (most are valid)
+// Parameter 3 = pixel type flags, add together as needed:
+//   NEO_KHZ800  800 KHz bitstream (most NeoPixel products w/WS2812 LEDs)
+//   NEO_KHZ400  400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
+//   NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
+//   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, PIN, NEO_GRB + NEO_KHZ800);
+
+LiquidCrystal_I2C_Hangul lcd(0x3F,16,2); //LCD
+void setup() {
+    
+}
+
+void loop() {
+    
+}
