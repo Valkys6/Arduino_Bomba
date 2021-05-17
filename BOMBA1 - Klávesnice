@@ -34,18 +34,17 @@
  */
 
 // Použíté knihovny:
+#include <Wire.h>                          // Základ pro I2C komunikaci
 #include <LiquidCrystal_I2C_Hangul.h>      // LCD
-#include <Wire.h>                          // LCD
 #include <Adafruit_NeoPixel.h>             // RGB LED
 #include <LedControl.h>                    // Segmentový displej
-#include <pitches.h>                       // Bzučák
 #include <Keypad.h>                        // Klávesnice
 
 // Definice pozic digitalních vstupů:
 // Klávesnice:
-#define ROWS = 4;                       // 4 řady
-#define COLS = 4;                       // 4 sloupce
-char keys[ROWS][COLS] = {                  // Rozvržení klávesnice
+const byte ROWS = 4;                       // 4 řady
+const byte COLS = 4;                       // 4 sloupce
+char hexaKeys[ROWS][COLS] = {              // Rozvržení klávesnice
   {'1','2','3','a'}
   ,
   {'4','5','6','b'}
@@ -55,20 +54,21 @@ char keys[ROWS][COLS] = {                  // Rozvržení klávesnice
   {'*','0','#','d'}
 };
 
-byte rowPins[ROWS]  {9, 8, 7, 6}        // Vstupní piny pro řady
-byte colPins[COLS]  {5, 4, 3, 2}        // Vstupní piny pro sloupce
+const byte rowPins[ROWS] = {9, 8, 7, 6};   // Vstupní piny pro řady
+const byte colPins[COLS] = {5, 4, 3, 2};   // Vstupní piny pro sloupce
 
 Keypad customKeypad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS);
-// Tláčítka
+
+// Tlačítka
 #define buttonPinRed  11                   // Vstupní pin červeného tlašítka
 #define buttonPinGreen  12                 // Vstupní pin zeleného tlašítka
-#define keySwitch  20                      // Vstulní pin klíčového spínače
+#define keySwitch  20                      // Vstupní pin klíčového spínače
 
 // Definice pozic digitalních výstupů:
 
 // RGB panel
-#define PIN  10                            // Kde je to připojeno
-#define NUM_LEDS  20                       // Počet LED na pásku (2x10)
+#define PIN  10                            // Vstupní pin RGB panelu
+#define NUM_LEDS  20                       // Počet LED na pásku (20 v sérii)
 // Parameter 1 = number of pixels in strip
 // Parameter 2 = pin number (most are valid)
 // Parameter 3 = pixel type flags, add together as needed:
@@ -76,8 +76,12 @@ Keypad customKeypad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS)
 // NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, PIN, NEO_GRB + NEO_KHZ800);
 
-LiquidCrystal_I2C_Hangul lcd(0x3F,16,2); // LCD (adresa, znaků, řádků)
-uint8_t reltim;                          // Casovadlo, pozor, umi to max 255 vterin (max 0xFF)
+// LCD 16x2
+LiquidCrystal_I2C_Hangul lcd(0x3F,16,2);  // LCD (adresa, znaků, řádků)
+
+// 7 segments LED display (MAX72XX)
+LedControl lc=LedControl(16,15,14,1);     // (DataIn, CLK, Load, počet MAX kontrolérů)
+unsigned long delaytime=500;              // Čekací doba pro obnovu displeje
 
 void setup() {
     
