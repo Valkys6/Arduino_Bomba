@@ -2,40 +2,83 @@
  *  
  *  Projekt pro https://svctrutnov.cz/
  *  Více k projektu na: https://github.com/Valkys6/Arduino_BombaSVC
+ *  Projektový tým ZPA Smart Energy, a.s.:
+ *      FW guru: Klapka (Jan Boenisch)
+ *      HW master: Martin Mužík
+ *      Noob: Josef Valkoun
  *  
  *  Soupis součástek:
- *    1) LCD displej 1602 s I2C převodníkem - zelený (Pinout: A4(18) = SDA; A5(19) = SCL; VCC; GND)
- *    2) LED displej 7 segmentovýy, 8 znaků MAX7219 - červený (Pinout: A0(14) = CS/load; A1(15) = CLK; A2(16) = DataIn)
- *    3) 4x4 Maticová tlačítková plastová klávesnice (Pinout: D2-D9)
- *    4) Buzzer 5V (Pinout: A3(17) = Signal; VCC; GND (v budoucnu výměna za 2x3W zesilovač + reproduktor)
- *    5) Tlačítko + Rezistor 220R (Pinout: D12; VCC; GND)
- *    6) RGB panel NEOPIXEL 20LED  + Rezistor 220R (Pinout: D12; VCC; GND)
+ *    1) Arduino Nano Every
+ *    2) LCD displej 1602 s I2C převodníkem - zelený (Pinout: A4(18) = SDA; A5(19) = SCL; VCC; GND)
+ *    3) LED displej 7 segmentovýy, 8 znaků MAX7219 - červený (Pinout: A0(14) = CS/load; A1(15) = CLK; A2(16) = DataIn)
+ *    4) 4x4 Maticová tlačítková plastová klávesnice (Pinout: D2-D9)
+ *    5) Buzzer 5V (Pinout: A3(17) = Signal; VCC; GND (v budoucnu výměna za 2x3W zesilovač + reproduktor)
+ *    6) Tlačítko zelené + Rezistor 220R (Pinout: D11; VCC; GND)
+ *    6) Tlačítko červené + Rezistor 220R (Pinout: D12; VCC; GND)
+ *    7) RGB panel NEOPIXEL 20LED + Rezistor 220R (Pinout: D11; VCC; GND)
+ *    8) Klíčový spínač třípoziční (Pinout: A6(20) = Deaktivace; VCCin = vstup; VCCout = výstup)
  *    
- *  Popis chovani kodu:
- *    1) 
+ *  Popis chováni bomby:
+ *    1) Zapnutí klíčovým spínačem
+ *    2) Vyber mód hry
+ *        a) Deaktivuj heslem
+ *            Submenu:  1. nastav heslo
+ *                      2. nastav časovač
+ *                      3. odjisti
+ *        b) Najdi a znič (Umísti a aktivuj bombu podržením červeného tlačítka. Deaktivace podržením zeleného tlačítka.)
+ *            Submenu:  1. nastav časovač
+ *                      2. odjisti
+ *        c) Sabotáž (zadej správné heslo k aktivaci bomby)
+ *            Submenu:  1. nastav heslo
+ *                      2. odjisti
  */
 
 // Použíté knihovny:
-#include<LiquidCrystal_I2C_Hangul.h>
-#include<Wire.h>
-#include <Adafruit_NeoPixel.h>
+#include <LiquidCrystal_I2C_Hangul.h>      // LCD
+#include <Wire.h>                          // LCD
+#include <Adafruit_NeoPixel.h>             // RGB LED
+#include <LedControl.h>                    // Segmentový displej
+#include <pitches.h>                       // Bzučák
+#include <Keypad.h>                        // Klávesnice
 
-// Definice pozic digitalních vstupu
+// Definice pozic digitalních vstupů:
+// Klávesnice:
+const byte ROWS = 4;                       // 4 řady
+const byte COLS = 4;                       // 4 sloupce
+char keys[ROWS][COLS] = {                  // Rozvržení klávesnice
+  {'1','2','3','a'}
+  ,
+  {'4','5','6','b'}
+  ,
+  {'7','8','9','c'}
+  ,
+  {'*','0','#','d'}
+};
 
+#define rowPins[ROWS]  {9, 8, 7, 6}        // Vstupní piny pro řady
+#define colPins[COLS]  {5, 4, 3, 2}        // Vstupní piny pro sloupce
 
-// Definice pozic digitalních výstupů
-#define PIN 11
-#define NUM_LEDS 20
+Keypad customKeypad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS);
+// Tláčítka
+#define buttonPinRed  11                   // Vstupní pin červeného tlašítka
+#define buttonPinGreen  12                 // Vstupní pin zeleného tlašítka
+#define keySwitch  20                      // Vstulní pin klíčového spínače
+
+// Definice pozic digitalních výstupů:
+
+// RGB panel
+#define PIN  10                            // Kde je to připojeno
+#define NUM_LEDS  20                       // Počet LED na pásku (2x10)
 // Parameter 1 = number of pixels in strip
 // Parameter 2 = pin number (most are valid)
 // Parameter 3 = pixel type flags, add together as needed:
-//   NEO_KHZ800  800 KHz bitstream (most NeoPixel products w/WS2812 LEDs)
-//   NEO_KHZ400  400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
-//   NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
-//   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
+// NEO_KHZ800  800 KHz bitstream (most NeoPixel products w/WS2812 LEDs)
+// NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, PIN, NEO_GRB + NEO_KHZ800);
 
-LiquidCrystal_I2C_Hangul lcd(0x3F,16,2); //LCD
+LiquidCrystal_I2C_Hangul lcd(0x3F,16,2); // LCD (adresa, znaků, řádků)
+uint8_t reltim;                          // Casovadlo, pozor, umi to max 255 vterin (max 0xFF)
+
 void setup() {
     
 }
