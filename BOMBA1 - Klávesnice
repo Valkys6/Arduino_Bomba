@@ -76,6 +76,7 @@ Keypad customKeypad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS)
 // NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, PIN, NEO_GRB + NEO_KHZ800);
 
+// LCD 16x2
 LiquidCrystal_I2C_Hangul lcd(0x3F,16,2); // LCD (adresa, znaků, řádků)
 uint8_t reltim;                          // Casovadlo, pozor, umi to max 255 vterin (max 0xFF)
 
