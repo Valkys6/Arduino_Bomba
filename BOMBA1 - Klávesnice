@@ -43,8 +43,8 @@
 
 // Definice pozic digitalních vstupů:
 // Klávesnice:
-const byte ROWS = 4;                       // 4 řady
-const byte COLS = 4;                       // 4 sloupce
+#define ROWS = 4;                       // 4 řady
+#define COLS = 4;                       // 4 sloupce
 char keys[ROWS][COLS] = {                  // Rozvržení klávesnice
   {'1','2','3','a'}
   ,
@@ -55,8 +55,8 @@ char keys[ROWS][COLS] = {                  // Rozvržení klávesnice
   {'*','0','#','d'}
 };
 
-#define rowPins[ROWS]  {9, 8, 7, 6}        // Vstupní piny pro řady
-#define colPins[COLS]  {5, 4, 3, 2}        // Vstupní piny pro sloupce
+byte rowPins[ROWS]  {9, 8, 7, 6}        // Vstupní piny pro řady
+byte colPins[COLS]  {5, 4, 3, 2}        // Vstupní piny pro sloupce
 
 Keypad customKeypad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS);
 // Tláčítka
@@ -76,7 +76,6 @@ Keypad customKeypad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS)
 // NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, PIN, NEO_GRB + NEO_KHZ800);
 
-// LCD 16x2
 LiquidCrystal_I2C_Hangul lcd(0x3F,16,2); // LCD (adresa, znaků, řádků)
 uint8_t reltim;                          // Casovadlo, pozor, umi to max 255 vterin (max 0xFF)
 
