@@ -65,28 +65,602 @@ Keypad customKeypad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS)
 #define keySwitch  20                      // Vstupní pin klíčového spínače
 
 // Definice pozic digitalních výstupů:
+#define piezoPin  13                       // Výstupní pin pro Buzzer
 
 // RGB panel
-#define PIN  10                            // Vstupní pin RGB panelu
+#define RGBPin  10                         // Datový pin RGB panelu
 #define NUM_LEDS  20                       // Počet LED na pásku (20 v sérii)
 // Parameter 1 = number of pixels in strip
 // Parameter 2 = pin number (most are valid)
 // Parameter 3 = pixel type flags, add together as needed:
 // NEO_KHZ800  800 KHz bitstream (most NeoPixel products w/WS2812 LEDs)
 // NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, RGBPin, NEO_GRB + NEO_KHZ800);
 
 // LCD 16x2
 LiquidCrystal_I2C_Hangul lcd(0x3F,16,2);  // LCD (adresa, znaků, řádků)
+
+// You can have up to 10 menu items in the menuItems[] array below without having to change the base programming at all. Name them however you'd like. Beyond 10 items, you will have to add additional "cases" in the switch/case
+// section of the operateMainMenu() function below. You will also have to add additional void functions (i.e. menuItem11, menuItem12, etc.) to the program.
+String menuItems[] = {"Deaktivuj heslem", "Najdi a znic", "Sabotaz", "Nastav heslo", "Nastav časovač", "Odjisti"};
+
+// Navigation button variables
+int readKey;
+int savedDistance = 0;
+
+// Menu control variables
+int menuPage = 0;
+int maxMenuPages = round(((sizeof(menuItems) / sizeof(String)) / 2) + .5);
+int cursorPosition = 0;
+
+// Creates 3 custom characters for the menu display
+byte downArrow[8] = {
+  0b00100, //   *
+  0b00100, //   *
+  0b00100, //   *
+  0b00100, //   *
+  0b00100, //   *
+  0b10101, // * * *
+  0b01110, //  ***
+  0b00100  //   *
+};
+
+byte upArrow[8] = {
+  0b00100, //   *
+  0b01110, //  ***
+  0b10101, // * * *
+  0b00100, //   *
+  0b00100, //   *
+  0b00100, //   *
+  0b00100, //   *
+  0b00100  //   *
+};
+
+byte menuCursor[8] = {
+  B01000, //  *
+  B00100, //   *
+  B00010, //    *
+  B00001, //     *
+  B00010, //    *
+  B00100, //   *
+  B01000, //  *
+  B00000  //
+};
+
+byte passRectan[8] = {
+  0b11111, //  *****
+  0b11111, //  *****
+  0b11111, //  *****
+  0b11111, //  *****
+  0b11111, //  *****
+  0b11111, //  *****
+  0b11111, //  *****
+  0b11111  //  *****
+};
 
 // 7 segments LED display (MAX72XX)
 LedControl lc=LedControl(16,15,14,1);     // (DataIn, CLK, Load, počet MAX kontrolérů)
 unsigned long delaytime=500;              // Čekací doba pro obnovu displeje
 
-void setup() {
-    
+
+#define DS_MAIN 0x00
+#define DS_MAIN_MODE_A 0x01
+#define DS_MAIN_MODE_B 0x02
+#define DS_MAIN_MODE_C 0x03
+#define DS_MAIN_MODE_A1 0x04
+#define DS_MAIN_MODE_A2 0x05
+#define DS_MAIN_MODE_A3 0x06
+#define DS_HRA_HESLO 0x07
+#define DS_HRA_HESLO_CHYBA 0x08
+#define DS_HRA_HESLO_OK 0x09
+#define DS_STRIN 0x80
+
+//cudliky pro pohyb v menu
+#define KEY_UP 'a'
+#define KEY_DOWN 'b'
+#define KEY_SELECT 'c'
+#define KEY_ESCAPE 'd'
+//cudliky pro zadavani retece
+#define KEY_STRIN_ENTER '*'
+#define KEY_STRIN_DELETE '#'
+#define KEY_STRIN_ESCAPE 'd'
+
+
+uint8_t display_st;
+uint8_t strin_st_mem; //stav, kam se vratime po zadani retezce
+uint8_t strin_pos; //pozice pro zobrazeni zadavaneho retezce
+uint8_t strin[9]; //pole znaku pro zadavani (osum znaku plus koncova nula, na tu nesmime zapomenout)
+uint8_t heslo[9];
+uint16_t casovy_limit;
+uint16_t secct; //pocitadlo pro generator vterin
+uint8_t minct; //pocitadlo pro generator minut
+uint8_t last_millis;
+uint16_t casovadlo; //casovani ve vterinach
+
+void strin_init(uint8_t stav, uint8_t radek, uint8_t sloupec) {
+  strin_st_mem=stav; //schovame si, do jakeho stavu se po zadani vratime
+  display_st=DS_STRIN; //budeme zadavat prvni pismenko
+  memset(strin,0,sizeof(strin)); //a vygumujeme to
+  strin_pos=(radek<<4)+sloupec; //vypocteme a schovame pozici, setrime, bajt nam na to staci 
 }
 
+void display_show(void) {
+  uint8_t i,c,p;
+  
+  if (display_st>=DS_STRIN) { //extra stavy pri zadavani retezce
+    lcd.setCursor(strin_pos&0xF, strin_pos>>4); //nastavime kursor na pozici prvniho zadavaneho znaku
+    p=display_st-DS_STRIN; //kde je kursor
+    for(i=0;i<(sizeof(strin));i++) { //budem zobrazovat, ikdyz tam muzou bejt nulovy znaky, to ale chceme
+      c=strin[i]; //vezmu pismenko
+      if (c<' ') c=' '; //pokud to je neco neviditelnyho (treba prave nula), tak z toho udelam mezeru
+      if (i==p) c=passRectan;
+      lcd.write(c); //a jeb s tim na displej
+    }
+    return; //a slus
+  }
+  lcd.clear();
+  lcd.setCursor(0, 1);
+  switch (display_st) {
+    case DS_MAIN_MODE_A:
+      lcd.print("Deaktivuj heslem");
+      break;  
+    case DS_MAIN_MODE_B:
+      lcd.print("mode B");
+      break;  
+    case DS_MAIN_MODE_C:
+      lcd.print("mode C");
+      break; 
+    case DS_MAIN_MODE_A1:
+      lcd.print("Heslo:  ");
+      lcd.print((char*)heslo);
+      break;
+    case DS_MAIN_MODE_A2:
+      lcd.print("Cas : ");
+      lcd.print(casovy_limit);
+      break; 
+    case DS_MAIN_MODE_A3:
+      lcd.print("Zacni hru");
+      break; 
+    case DS_HRA_HESLO:
+      lcd.setCursor(0, 0);
+      lcd.print("HESLO pro deak-");
+      lcd.setCursor(0, 1);
+      lcd.print("tivaci: ********");
+      return;
+    case DS_HRA_HESLO_CHYBA:
+      lcd.setCursor(0, 0);
+      lcd.print("HESLO pro deak-");
+      lcd.setCursor(0, 1);
+      lcd.print("tivaci: CHYBA!!");
+      return;
+    case DS_HRA_HESLO_OK:
+      lcd.setCursor(0, 0);
+               //0123456789ABCDEF
+      lcd.print("  DEAKTIVOVANO  ");
+      lcd.setCursor(0, 1);
+      lcd.print("Dobra prace! ;-)");
+      return;
+    default:
+      lcd.print("neco je spatne!");
+      break;  
+  }
+  lcd.setCursor(0, 0);
+  lcd.print("Bombaaaaaa");
+} 
+
+void key_proc(void) {
+  char c;
+  uint8_t i;
+  
+  c=customKeypad.getKey(); //precteme si cudlik
+  if (c==0) return; //kdyz je klid (neni zadnej cudlik), tak slus
+  if (display_st>=DS_STRIN) { //extra stavy pri zadavani retezce
+    i=display_st-DS_STRIN; //spocteme si index znaku
+    switch (c) {
+      case KEY_STRIN_ENTER:
+        display_st=strin_st_mem; //nastavime stav, kam se chceme vratit
+        switch (display_st) { //a podle nej take zpracujeme zadany retezec
+          case DS_MAIN_MODE_A1: //bylo uspesne zadano heslo
+            memcpy(heslo,strin,sizeof(heslo));
+            break;
+          case DS_MAIN_MODE_A2: //byl zaan casovy limit
+            casovy_limit=atoi(strin);
+            break;
+          case DS_HRA_HESLO:
+            if (memcmp(heslo,strin,sizeof(heslo))==0) {
+              display_st=DS_HRA_HESLO_OK;
+              casovadlo=0;
+            } else {
+              display_st=DS_HRA_HESLO_CHYBA;
+            }
+            break;
+        }
+        break;
+      case KEY_STRIN_ESCAPE:
+        memset(strin,0,sizeof(strin));
+        display_st=strin_st_mem;
+        break;
+      case KEY_STRIN_DELETE:
+        if (i>0) {
+          display_st--;
+          strin[i-1]=0;
+        }
+        break; //a slis      
+      default: //ostatni pismenka budem davat do bufiku
+        if (i<(sizeof(strin)-1)) { //pokud nejsme mimo
+          strin[i]=c; //vetkni pismenko
+          display_st++; //a priste budeme zadavat dalsi
+        }
+        break;
+    }
+    display_show(); //hod to na displej
+    return; //koncime
+  }
+  
+  //tady uz je to normalni, jak jsme se ucili ;-)
+  switch (display_st) {     // rozhoduje se podle stavu do kterého nového stavu přejdeme
+    case DS_MAIN:           // displej po zapnutí
+     display_st=DS_MAIN_MODE_A; // ať se děje co se děje deme do první nabídky
+     break; // a šlus
+    case DS_MAIN_MODE_A:  // začátek menu
+      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_B; // když čudl dolů, jdeme b nabídku
+      if (c==KEY_UP) display_st=DS_MAIN_MODE_C;     // když čudl dolů, jdeme C nabídku
+      if (c==KEY_SELECT) display_st=DS_MAIN_MODE_A1; // vstupujeme do submenu
+      break;
+    case DS_MAIN_MODE_B:
+      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_C;
+      if (c==KEY_UP) display_st=DS_MAIN_MODE_A;
+      break;
+    case DS_MAIN_MODE_C:
+      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_A;
+      if (c==KEY_UP) display_st=DS_MAIN_MODE_B;
+      break;
+    case DS_MAIN_MODE_A1:
+      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_A2;
+      if (c==KEY_UP) display_st=DS_MAIN_MODE_A3;
+      if (c==KEY_ESCAPE) display_st=DS_MAIN_MODE_A;  // utíkáme ze submenu do hlavního
+      if (c==KEY_SELECT) strin_init(DS_MAIN_MODE_A1,1,8);
+      break;
+    case DS_MAIN_MODE_A2:
+      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_A3;
+      if (c==KEY_UP) display_st=DS_MAIN_MODE_A1;
+      if (c==KEY_ESCAPE) display_st=DS_MAIN_MODE_A;
+      if (c==KEY_SELECT) strin_init(DS_MAIN_MODE_A2,1,6);
+      break;
+    case DS_MAIN_MODE_A3:
+      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_A1;
+      if (c==KEY_UP) display_st=DS_MAIN_MODE_A2;
+      if (c==KEY_ESCAPE) display_st=DS_MAIN_MODE_A;
+      if (c==KEY_SELECT) {
+        display_st=DS_HRA_HESLO;
+        casovadlo=casovy_limit*60;
+      }
+      break;
+    case DS_HRA_HESLO:
+      strin_init(DS_HRA_HESLO,1,8);
+      break;
+    case DS_HRA_HESLO_CHYBA:
+      display_st=DS_HRA_HESLO;
+      break;
+    case DS_HRA_HESLO_OK:
+      //tady asi uz nic, cekame na restart
+      break;
+  }
+  display_show(); //hod to na displej
+}
+ 
+void setup() {
+  // Pripravime si seriak
+  Serial.begin(9600);
+  Serial.print("Start\n");
+  
+  //inicializace promennych
+  memset(heslo,0,sizeof(heslo));
+  casovy_limit=15;
+  casovadlo=0;
+  last_millis=(uint8_t)millis(); //inicializace casovani
+  secct=0; //start generatoru vteriny
+  minct=0; //start generatoru minuty
+  
+  // Initializes and clears the LCD screen
+  lcd.init(); 
+  lcd.backlight();
+  lcd.begin(16, 2);
+  lcd.clear();
+  Serial.print("aaaaaa");
+
+  // Creates the byte for the custom characters
+  lcd.createChar(0, menuCursor);
+  lcd.createChar(1, upArrow);
+  lcd.createChar(2, downArrow);
+  lcd.createChar(3, passRectan);
+  display_st=0;
+  display_show();
+  
+  // Nastav vystupy
+  //pinMode(piezoPin, OUTPUT);      // Inicializace buzzeru + integrovane LED jako vystup
+
+  // Nastav vstupy
+  pinMode(buttonPinRed, INPUT);   // Inicilazace tlacitka jako vstup
+  pinMode(buttonPinGreen, INPUT); // Inicilazace prepinace jako vstup
+  pinMode(keySwitch, INPUT);      // Inicializace dolniho plovakoveho senzoru - PIN_PLOV1
+  strip.begin();                  // Nastav na zacatek RGB pasku
+  strip.show();                   // Inicializuj všechny pixely na 'off'
+  
+  lc.shutdown(0,false);
+  /* Set the brightness to a medium values */
+  lc.setIntensity(0,8);
+  /* and clear the display */
+  lc.clearDisplay(0);
+
+}
+
+void ukaz_00_99(uint8_t pos, uint8_t value) {
+  lc.setDigit(0,pos,value/10,false);
+  lc.setDigit(0,--pos,value%10,true);
+}
+
+void ukaz_cas(void) {
+  uint8_t hod,min,sec;
+  uint16_t x;
+  
+  x=casovadlo;
+  if (x==0) {
+    lc.clearDisplay(0);
+    return;
+  }
+  sec=x%60;
+  x=x/60;
+  min=x%60;
+  x=x/60;
+  hod=x;
+  ukaz_00_99(7,hod);
+  ukaz_00_99(4,min);
+  ukaz_00_99(1,sec);
+}
+
+
+
 void loop() {
+  uint8_t ms;
+  
+  ms=((uint8_t)millis())-last_millis;
+  if (ms!=0) {    
+    last_millis+=ms;
+    secct+=ms; //prihodime k pocitadlu vteriny
+    if (secct>=1000) { //pokud mame vterinu
+      ukaz_cas();
+      secct-=1000; //odzitou vterinu zahodime a jedeme dal
+      if (casovadlo!=0) {
+        if ((--casovadlo)==0) {
+          //vybuch
+        }
+      }
+      if ((++minct)>=60) { //pocitame minutu  
+        minct=0; //a pocitadlo zase od zacatku
+      }
+    } 
+  }
+  key_proc();
+}
+
+/*
+
+// This function will generate the 2 menu items that can fit on the screen. They will change as you scroll through your menu. Up and down arrows will indicate your current menu position.
+void mainMenuDraw() {
+  Serial.print(menuPage);
+  lcd.clear();
+  lcd.setCursor(1, 0);
+  lcd.print(menuItems[menuPage]);
+  lcd.setCursor(1, 1);
+  lcd.print(menuItems[menuPage + 1]);
+  if (menuPage == 0) {
+    lcd.setCursor(15, 1);
+    lcd.write(byte(2));
+  } else if (menuPage > 0 and menuPage < maxMenuPages) {
+    lcd.setCursor(15, 1);
+    lcd.write(byte(2));
+    lcd.setCursor(15, 0);
+    lcd.write(byte(1));
+  } else if (menuPage == maxMenuPages) {
+    lcd.setCursor(15, 0);
+    lcd.write(byte(1));
+  }
+}
+
+// When called, this function will erase the current cursor and redraw it based on the cursorPosition and menuPage variables.
+void drawCursor() {
+  for (int x = 0; x < 2; x++) {     // Erases current cursor
+    lcd.setCursor(0, x);
+    lcd.print(" ");
+  }
+
+  // The menu is set up to be progressive (menuPage 0 = Item 1 & Item 2, menuPage 1 = Item 2 & Item 3, menuPage 2 = Item 3 & Item 4), so
+  // in order to determine where the cursor should be you need to see if you are at an odd or even menu page and an odd or even cursor position.
+  if (menuPage % 2 == 0) {
+    if (cursorPosition % 2 == 0) {  // If the menu page is even and the cursor position is even that means the cursor should be on line 1
+      lcd.setCursor(0, 0);
+      lcd.write(byte(0));
+    }
+    if (cursorPosition % 2 != 0) {  // If the menu page is even and the cursor position is odd that means the cursor should be on line 2
+      lcd.setCursor(0, 1);
+      lcd.write(byte(0));
+    }
+  }
+  if (menuPage % 2 != 0) {
+    if (cursorPosition % 2 == 0) {  // If the menu page is odd and the cursor position is even that means the cursor should be on line 2
+      lcd.setCursor(0, 1);
+      lcd.write(byte(0));
+    }
+    if (cursorPosition % 2 != 0) {  // If the menu page is odd and the cursor position is odd that means the cursor should be on line 1
+      lcd.setCursor(0, 0);
+      lcd.write(byte(0));
+    }
+  }
+}
+
+void operateMainMenu() {
+  int activeButton = 0;
+  while (activeButton == 0) {
+    int button;
+    readKey = analogRead(0);
+    if (readKey < 790) {
+      delay(100);
+      readKey = analogRead(0);
+    }
+    button = evaluateButton(readKey);
+    switch (button) {
+      case 0: // When button returns as 0 there is no action taken
+        break;
+      case 1:  // This case will execute if the "forward" button is pressed
+        button = 0;
+        switch (cursorPosition) { // The case that is selected here is dependent on which menu page you are on and where the cursor is.
+          case 0:
+            menuItem1();
+            break;
+          case 1:
+            menuItem2();
+            break;
+          case 2:
+            menuItem3();
+            break;
+          case 3:
+            menuItem4();
+            break;
+          
+        }
+        activeButton = 1;
+        mainMenuDraw();
+        drawCursor();
+        break;
+      case 2:
+        button = 0;
+        if (menuPage == 0) {
+          cursorPosition = cursorPosition - 1;
+          cursorPosition = constrain(cursorPosition, 0, ((sizeof(menuItems) / sizeof(String)) - 1));
+        }
+        if (menuPage % 2 == 0 and cursorPosition % 2 == 0) {
+          menuPage = menuPage - 1;
+          menuPage = constrain(menuPage, 0, maxMenuPages);
+        }
+
+        if (menuPage % 2 != 0 and cursorPosition % 2 != 0) {
+          menuPage = menuPage - 1;
+          menuPage = constrain(menuPage, 0, maxMenuPages);
+        }
+
+        cursorPosition = cursorPosition - 1;
+        cursorPosition = constrain(cursorPosition, 0, ((sizeof(menuItems) / sizeof(String)) - 1));
+
+        mainMenuDraw();
+        drawCursor();
+        activeButton = 1;
+        break;
+      case 3:
+        button = 0;
+        if (menuPage % 2 == 0 and cursorPosition % 2 != 0) {
+          menuPage = menuPage + 1;
+          menuPage = constrain(menuPage, 0, maxMenuPages);
+        }
+
+        if (menuPage % 2 != 0 and cursorPosition % 2 == 0) {
+          menuPage = menuPage + 1;
+          menuPage = constrain(menuPage, 0, maxMenuPages);
+        }
+
+        cursorPosition = cursorPosition + 1;
+        cursorPosition = constrain(cursorPosition, 0, ((sizeof(menuItems) / sizeof(String)) - 1));
+        mainMenuDraw();
+        drawCursor();
+        activeButton = 1;
+        break;
+    }
+  }
+}
+*/
+
+// Ovládání RGB displeje - mód Oheň 
+void Fire(int Cooling, int Sparking, int SpeedDelay) {
+  static byte heat[NUM_LEDS];
+  int cooldown;
+  
+  // Step 1.  Cool down every cell a little
+  for( int i = 0; i < NUM_LEDS; i++) {
+    cooldown = random(0, ((Cooling * 10) / NUM_LEDS) + 2);
     
+    if(cooldown>heat[i]) {
+      heat[i]=0;
+    } else {
+      heat[i]=heat[i]-cooldown;
+    }
+  }
+  
+  // Step 2.  Heat from each cell drifts 'up' and diffuses a little
+  for( int k= NUM_LEDS - 1; k >= 2; k--) {
+    heat[k] = (heat[k - 1] + heat[k - 2] + heat[k - 2]) / 3;
+  }
+    
+  // Step 3.  Randomly ignite new 'sparks' near the bottom
+  if( random(255) < Sparking ) {
+    int y = random(7);
+    heat[y] = heat[y] + random(160,255);
+    //heat[y] = random(160,255);
+  }
+
+  // Step 4.  Convert heat to LED colors
+  for( int j = 0; j < NUM_LEDS; j++) {
+    setPixelHeatColor(j, heat[j] );
+  }
+
+  showStrip();
+  delay(SpeedDelay);
+}
+
+void setPixelHeatColor (int Pixel, byte temperature) {
+  // Scale 'heat' down from 0-255 to 0-191
+  byte t192 = round((temperature/255.0)*191);
+ 
+  // calculate ramp up from
+  byte heatramp = t192 & 0x3F; // 0..63
+  heatramp <<= 2; // scale up to 0..252
+ 
+  // figure out which third of the spectrum we're in:
+  if( t192 > 0x80) {                     // hottest
+    setPixel(Pixel, 255, 255, heatramp);
+  } else if( t192 > 0x40 ) {             // middle
+    setPixel(Pixel, 255, heatramp, 0);
+  } else {                               // coolest
+    setPixel(Pixel, heatramp, 0, 0);
+  }
+}
+
+void showStrip() {
+ #ifdef ADAFRUIT_NEOPIXEL_H 
+   // NeoPixel
+   strip.show();
+ #endif
+ #ifndef ADAFRUIT_NEOPIXEL_H
+   // FastLED
+   FastLED.show();
+ #endif
+}
+
+void setPixel(int Pixel, byte red, byte green, byte blue) {
+ #ifdef ADAFRUIT_NEOPIXEL_H 
+   // NeoPixel
+   strip.setPixelColor(Pixel, strip.Color(red, green, blue));
+ #endif
+ #ifndef ADAFRUIT_NEOPIXEL_H 
+   // FastLED
+   leds[Pixel].r = red;
+   leds[Pixel].g = green;
+   leds[Pixel].b = blue;
+ #endif
+}
+
+void setAll(byte red, byte green, byte blue) {
+  for(int i = 0; i < NUM_LEDS; i++ ) {
+    setPixel(i, red, green, blue); 
+  }
+  showStrip();
 }
