@@ -140,7 +140,7 @@ byte passRectan[8] = {
 
 // 7 segments LED display (MAX72XX)
 LedControl lc=LedControl(16,15,14,1);     // (DataIn, CLK, Load, počet MAX kontrolérů)
-unsigned long delaytime=500;              // Čekací doba pro obnovu displeje
+unsigned long delaytime=100;              // Čekací doba pro obnovu displeje
 
 
 #define DS_MAIN 0x00
@@ -215,7 +215,7 @@ void display_show(void) {
       lcd.print((char*)heslo);
       break;
     case DS_MAIN_MODE_A2:
-      lcd.print("Cas : ");
+      lcd.print("Cas:  ");
       lcd.print(casovy_limit);
       break; 
     case DS_MAIN_MODE_A3:
@@ -356,7 +356,7 @@ void setup() {
   
   //inicializace promennych
   memset(heslo,0,sizeof(heslo));
-  casovy_limit=15;
+  casovy_limit=1;
   casovadlo=0;
   last_millis=(uint8_t)millis(); //inicializace casovani
   secct=0; //start generatoru vteriny
@@ -395,28 +395,34 @@ void setup() {
 
 }
 
-void ukaz_00_99(uint8_t pos, uint8_t value) {
-  lc.setDigit(0,pos,value/10,false);
+void ukaz_00_99(uint8_t pos, uint8_t value, uint8_t dots) {
+  lc.setDigit(0,pos,value/10,dots);
+  delay(3);
   lc.setDigit(0,--pos,value%10,true);
+  delay(3);
 }
 
 void ukaz_cas(void) {
-  uint8_t hod,min,sec;
+  uint8_t hod,min,sec,dots;
   uint16_t x;
   
-  x=casovadlo;
+  x=casovadlo; 
   if (x==0) {
     lc.clearDisplay(0);
     return;
   }
+  x--; //chybela nam 0 a dojeti milisekund, tak to takhle vohneme a je to
   sec=x%60;
   x=x/60;
   min=x%60;
   x=x/60;
   hod=x;
-  ukaz_00_99(7,hod);
-  ukaz_00_99(4,min);
-  ukaz_00_99(1,sec);
+  dots=x&1; //blikame teckama
+  ukaz_00_99(7,hod,dots);
+  ukaz_00_99(5,min,dots);
+  ukaz_00_99(3,sec,dots);
+  ukaz_00_99(1,(2000-secct)/10,false);
+// lc.setDigit(0,0,secct/100,false);
 }
 
 
@@ -425,11 +431,10 @@ void loop() {
   uint8_t ms;
   
   ms=((uint8_t)millis())-last_millis;
-  if (ms!=0) {    
+  if (ms!=0) {
     last_millis+=ms;
     secct+=ms; //prihodime k pocitadlu vteriny
     if (secct>=1000) { //pokud mame vterinu
-      ukaz_cas();
       secct-=1000; //odzitou vterinu zahodime a jedeme dal
       if (casovadlo!=0) {
         if ((--casovadlo)==0) {
@@ -441,6 +446,7 @@ void loop() {
       }
     } 
   }
+  ukaz_cas();
   key_proc();
 }
 
