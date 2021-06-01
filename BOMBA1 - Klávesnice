@@ -3,7 +3,7 @@
  *  Projekt pro https://svctrutnov.cz/
  *  Více k projektu na: https://github.com/Valkys6/Arduino_BombaSVC
  *  Projektový tým ZPA Smart Energy, a.s.:
- *      FW guru: Klapka (Jan Boenisch)
+ *      FW guru: Klapka (Jan Bonisch)
  *      HW master: Martin Mužík
  *      Noob: Josef Valkoun
  *  
@@ -24,27 +24,30 @@
  *        a) Deaktivuj heslem
  *            Submenu:  1. nastav heslo
  *                      2. nastav časovač
- *                      3. odjisti
+ *                      3. počet pokusu na heslo
+ *                      4. odjisti
+ *            Deaktivace: zadanim spravneho hesla (limit pro spravne zadani)
  *        b) Najdi a znič (Umísti a aktivuj bombu podržením červeného tlačítka. Deaktivace podržením zeleného tlačítka.)
  *            Submenu:  1. nastav časovač
- *                      2. odjisti
+ *                      2. odjisti podrzenim cerveneho tlacitka (20s)
+ *            Deakticace: podrzenim zeleneho tlacitka (20s)
  *        c) Sabotáž (zadej správné heslo k aktivaci bomby)
- *            Submenu:  1. nastav heslo
- *                      2. odjisti
+ *            Submenu:  1. odjisti
+ *            Aktivace: odjisti klíčem
  */
 
-// Použíté knihovny:
-#include <Wire.h>                          // Základ pro I2C komunikaci
+// Pouzite knihovny:
+#include <Wire.h>                          // Zaklad pro I2C komunikaci
 #include <LiquidCrystal_I2C_Hangul.h>      // LCD
 #include <Adafruit_NeoPixel.h>             // RGB LED
-#include <LedControl.h>                    // Segmentový displej
-#include <Keypad.h>                        // Klávesnice
+#include <LedControl.h>                    // Segmentovy displej
+#include <Keypad.h>                        // Klavesnice
 
 // Definice pozic digitalních vstupů:
 // Klávesnice:
-const byte ROWS = 4;                       // 4 řady
+const byte ROWS = 4;                       // 4 rady
 const byte COLS = 4;                       // 4 sloupce
-char hexaKeys[ROWS][COLS] = {              // Rozvržení klávesnice
+char hexaKeys[ROWS][COLS] = {              // Rozvrzení klavesnice
   {'1','2','3','a'}
   ,
   {'4','5','6','b'}
@@ -80,18 +83,9 @@ Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, RGBPin, NEO_GRB + NEO_KHZ8
 // LCD 16x2
 LiquidCrystal_I2C_Hangul lcd(0x3F,16,2);  // LCD (adresa, znaků, řádků)
 
-// You can have up to 10 menu items in the menuItems[] array below without having to change the base programming at all. Name them however you'd like. Beyond 10 items, you will have to add additional "cases" in the switch/case
-// section of the operateMainMenu() function below. You will also have to add additional void functions (i.e. menuItem11, menuItem12, etc.) to the program.
-String menuItems[] = {"Deaktivuj heslem", "Najdi a znic", "Sabotaz", "Nastav heslo", "Nastav časovač", "Odjisti"};
-
 // Navigation button variables
 int readKey;
 int savedDistance = 0;
-
-// Menu control variables
-int menuPage = 0;
-int maxMenuPages = round(((sizeof(menuItems) / sizeof(String)) / 2) + .5);
-int cursorPosition = 0;
 
 // Creates 3 custom characters for the menu display
 byte downArrow[8] = {
@@ -139,7 +133,7 @@ byte passRectan[8] = {
 };
 
 // 7 segments LED display (MAX72XX)
-LedControl lc=LedControl(16,15,14,1);     // (DataIn, CLK, Load, počet MAX kontrolérů)
+LedControl lc=LedControl(16,14,15,1);     // (DataIn, CLK, Load, počet MAX kontrolérů)
 unsigned long delaytime=100;              // Čekací doba pro obnovu displeje
 
 
@@ -205,10 +199,10 @@ void display_show(void) {
       lcd.print("Deaktivuj heslem");
       break;  
     case DS_MAIN_MODE_B:
-      lcd.print("mode B");
-      break;  
+      lcd.print("Najdi a znic");
+      break;
     case DS_MAIN_MODE_C:
-      lcd.print("mode C");
+      lcd.print("Sabotaz");
       break; 
     case DS_MAIN_MODE_A1:
       lcd.print("Heslo:  ");
@@ -220,7 +214,17 @@ void display_show(void) {
       break; 
     case DS_MAIN_MODE_A3:
       lcd.print("Zacni hru");
+      break;
+    case DS_MAIN_MODE_B1:
+      lcd.print("Cas:  ");
+      lcd.print(casovy_limit);
+      break;
+    case DS_MAIN_MODE_B2:
+      lcd.print("Zacni hru");
       break; 
+    case DS_MAIN_MODE_C:
+      lcd.print("Zacni hru");
+      break;
     case DS_HRA_HESLO:
       lcd.setCursor(0, 0);
       lcd.print("HESLO pro deak-");
@@ -241,12 +245,13 @@ void display_show(void) {
       lcd.print("Dobra prace! ;-)");
       return;
     default:
-      lcd.print("neco je spatne!");
+      lcd.setCursor(0, 1);
+      lcd.print("Stiskni tlacitko");
       break;  
-  }
+  } 
   lcd.setCursor(0, 0);
-  lcd.print("Bombaaaaaa");
-} 
+  lcd.print("    Bombaaaa    ");
+}
 
 void key_proc(void) {
   char c;
@@ -310,6 +315,7 @@ void key_proc(void) {
     case DS_MAIN_MODE_B:
       if (c==KEY_DOWN) display_st=DS_MAIN_MODE_C;
       if (c==KEY_UP) display_st=DS_MAIN_MODE_A;
+      if (c==KEY_SELECT) display_st=DS_MAIN_MODE_B1; // vstupujeme do submenu
       break;
     case DS_MAIN_MODE_C:
       if (c==KEY_DOWN) display_st=DS_MAIN_MODE_A;
@@ -367,7 +373,7 @@ void setup() {
   lcd.backlight();
   lcd.begin(16, 2);
   lcd.clear();
-  Serial.print("aaaaaa");
+  Serial.print("Inicializace LCD");
 
   // Creates the byte for the custom characters
   lcd.createChar(0, menuCursor);
@@ -392,7 +398,6 @@ void setup() {
   lc.setIntensity(0,8);
   /* and clear the display */
   lc.clearDisplay(0);
-
 }
 
 void ukaz_00_99(uint8_t pos, uint8_t value, uint8_t dots) {
@@ -421,11 +426,8 @@ void ukaz_cas(void) {
   ukaz_00_99(7,hod,dots);
   ukaz_00_99(5,min,dots);
   ukaz_00_99(3,sec,dots);
-  ukaz_00_99(1,(2000-secct)/10,false);
-// lc.setDigit(0,0,secct/100,false);
+  ukaz_00_99(1,(1000-secct)/10,false);
 }
-
-
 
 void loop() {
   uint8_t ms;
@@ -449,141 +451,6 @@ void loop() {
   ukaz_cas();
   key_proc();
 }
-
-/*
-
-// This function will generate the 2 menu items that can fit on the screen. They will change as you scroll through your menu. Up and down arrows will indicate your current menu position.
-void mainMenuDraw() {
-  Serial.print(menuPage);
-  lcd.clear();
-  lcd.setCursor(1, 0);
-  lcd.print(menuItems[menuPage]);
-  lcd.setCursor(1, 1);
-  lcd.print(menuItems[menuPage + 1]);
-  if (menuPage == 0) {
-    lcd.setCursor(15, 1);
-    lcd.write(byte(2));
-  } else if (menuPage > 0 and menuPage < maxMenuPages) {
-    lcd.setCursor(15, 1);
-    lcd.write(byte(2));
-    lcd.setCursor(15, 0);
-    lcd.write(byte(1));
-  } else if (menuPage == maxMenuPages) {
-    lcd.setCursor(15, 0);
-    lcd.write(byte(1));
-  }
-}
-
-// When called, this function will erase the current cursor and redraw it based on the cursorPosition and menuPage variables.
-void drawCursor() {
-  for (int x = 0; x < 2; x++) {     // Erases current cursor
-    lcd.setCursor(0, x);
-    lcd.print(" ");
-  }
-
-  // The menu is set up to be progressive (menuPage 0 = Item 1 & Item 2, menuPage 1 = Item 2 & Item 3, menuPage 2 = Item 3 & Item 4), so
-  // in order to determine where the cursor should be you need to see if you are at an odd or even menu page and an odd or even cursor position.
-  if (menuPage % 2 == 0) {
-    if (cursorPosition % 2 == 0) {  // If the menu page is even and the cursor position is even that means the cursor should be on line 1
-      lcd.setCursor(0, 0);
-      lcd.write(byte(0));
-    }
-    if (cursorPosition % 2 != 0) {  // If the menu page is even and the cursor position is odd that means the cursor should be on line 2
-      lcd.setCursor(0, 1);
-      lcd.write(byte(0));
-    }
-  }
-  if (menuPage % 2 != 0) {
-    if (cursorPosition % 2 == 0) {  // If the menu page is odd and the cursor position is even that means the cursor should be on line 2
-      lcd.setCursor(0, 1);
-      lcd.write(byte(0));
-    }
-    if (cursorPosition % 2 != 0) {  // If the menu page is odd and the cursor position is odd that means the cursor should be on line 1
-      lcd.setCursor(0, 0);
-      lcd.write(byte(0));
-    }
-  }
-}
-
-void operateMainMenu() {
-  int activeButton = 0;
-  while (activeButton == 0) {
-    int button;
-    readKey = analogRead(0);
-    if (readKey < 790) {
-      delay(100);
-      readKey = analogRead(0);
-    }
-    button = evaluateButton(readKey);
-    switch (button) {
-      case 0: // When button returns as 0 there is no action taken
-        break;
-      case 1:  // This case will execute if the "forward" button is pressed
-        button = 0;
-        switch (cursorPosition) { // The case that is selected here is dependent on which menu page you are on and where the cursor is.
-          case 0:
-            menuItem1();
-            break;
-          case 1:
-            menuItem2();
-            break;
-          case 2:
-            menuItem3();
-            break;
-          case 3:
-            menuItem4();
-            break;
-          
-        }
-        activeButton = 1;
-        mainMenuDraw();
-        drawCursor();
-        break;
-      case 2:
-        button = 0;
-        if (menuPage == 0) {
-          cursorPosition = cursorPosition - 1;
-          cursorPosition = constrain(cursorPosition, 0, ((sizeof(menuItems) / sizeof(String)) - 1));
-        }
-        if (menuPage % 2 == 0 and cursorPosition % 2 == 0) {
-          menuPage = menuPage - 1;
-          menuPage = constrain(menuPage, 0, maxMenuPages);
-        }
-
-        if (menuPage % 2 != 0 and cursorPosition % 2 != 0) {
-          menuPage = menuPage - 1;
-          menuPage = constrain(menuPage, 0, maxMenuPages);
-        }
-
-        cursorPosition = cursorPosition - 1;
-        cursorPosition = constrain(cursorPosition, 0, ((sizeof(menuItems) / sizeof(String)) - 1));
-
-        mainMenuDraw();
-        drawCursor();
-        activeButton = 1;
-        break;
-      case 3:
-        button = 0;
-        if (menuPage % 2 == 0 and cursorPosition % 2 != 0) {
-          menuPage = menuPage + 1;
-          menuPage = constrain(menuPage, 0, maxMenuPages);
-        }
-
-        if (menuPage % 2 != 0 and cursorPosition % 2 == 0) {
-          menuPage = menuPage + 1;
-          menuPage = constrain(menuPage, 0, maxMenuPages);
-        }
-
-        cursorPosition = cursorPosition + 1;
-        cursorPosition = constrain(cursorPosition, 0, ((sizeof(menuItems) / sizeof(String)) - 1));
-        mainMenuDraw();
-        drawCursor();
-        activeButton = 1;
-        break;
-    }
-  }
-}
-*/
 
 // Ovládání RGB displeje - mód Oheň 
 void Fire(int Cooling, int Sparking, int SpeedDelay) {
