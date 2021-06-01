@@ -1,39 +1,39 @@
-/* BOMBA1 - s klávesnicí
+/* BOMBA1 - s klavesnici
  *  
  *  Projekt pro https://svctrutnov.cz/
- *  Více k projektu na: https://github.com/Valkys6/Arduino_BombaSVC
- *  Projektový tým ZPA Smart Energy, a.s.:
+ *  Vice k projektu na: https://github.com/Valkys6/Arduino_BombaSVC
+ *  Projektovy tym ZPA Smart Energy, a.s.:
  *      FW guru: Klapka (Jan Bonisch)
- *      HW master: Martin Mužík
+ *      HW master: Martin Muzik
  *      Noob: Josef Valkoun
  *  
- *  Soupis součástek:
+ *  Soupis soucastek:
  *    1) Arduino Nano Every
- *    2) LCD displej 1602 s I2C převodníkem - zelený (Pinout: A4(18) = SDA; A5(19) = SCL; VCC; GND)
- *    3) LED displej 7 segmentovýy, 8 znaků MAX7219 - červený (Pinout: A0(14) = CS/load; A1(15) = CLK; A2(16) = DataIn)
- *    4) 4x4 Maticová tlačítková plastová klávesnice (Pinout: D2-D9)
- *    5) Buzzer 5V (Pinout: A3(17) = Signal; VCC; GND (v budoucnu výměna za 2x3W zesilovač + reproduktor)
- *    6) Tlačítko zelené + Rezistor 220R (Pinout: D11; VCC; GND)
- *    6) Tlačítko červené + Rezistor 220R (Pinout: D12; VCC; GND)
+ *    2) LCD displej 1602 s I2C prevodnikem - zeleny (Pinout: A4(18) = SDA; A5(19) = SCL; VCC; GND)
+ *    3) LED displej 7 segmentovyy, 8 znaku MAX7219 - cerveny (Pinout: A0(14) = CS/load; A1(15) = CLK; A2(16) = DataIn)
+ *    4) 4x4 Maticova tlacitkova plastova klavesnice (Pinout: D2-D9)
+ *    5) Buzzer 5V (Pinout: A3(17) = Signal; VCC; GND (v budoucnu vymena za 2x3W zesilovac + reproduktor)
+ *    6) Tlacitko zelene + Rezistor 220R (Pinout: D11; VCC; GND)
+ *    6) Tlacitko cervene + Rezistor 220R (Pinout: D12; VCC; GND)
  *    7) RGB panel NEOPIXEL 20LED + Rezistor 220R (Pinout: D11; VCC; GND)
- *    8) Klíčový spínač třípoziční (Pinout: A6(20) = Deaktivace; VCCin = vstup; VCCout = výstup)
+ *    8) Klicovy spinac tripozicni (Pinout: A6(20) = Deaktivace; VCCin = vstup; VCCout = vystup)
  *    
- *  Popis chováni bomby:
- *    1) Zapnutí klíčovým spínačem
- *    2) Vyber mód hry
+ *  Popis chovani bomby:
+ *    1) Zapnuti klicovym spinacem
+ *    2) Vyber mod hry
  *        a) Deaktivuj heslem
  *            Submenu:  1. nastav heslo
- *                      2. nastav časovač
- *                      3. počet pokusu na heslo
+ *                      2. nastav casovac
+ *                      3. pocet pokusu na heslo
  *                      4. odjisti
  *            Deaktivace: zadanim spravneho hesla (limit pro spravne zadani)
- *        b) Najdi a znič (Umísti a aktivuj bombu podržením červeného tlačítka. Deaktivace podržením zeleného tlačítka.)
- *            Submenu:  1. nastav časovač
+ *        b) Najdi a znic (Umisti a aktivuj bombu podrzenim cerveneho tlacitka. Deaktivace podrzenim zeleneho tlacitka.)
+ *            Submenu:  1. nastav casovac
  *                      2. odjisti podrzenim cerveneho tlacitka (20s)
  *            Deakticace: podrzenim zeleneho tlacitka (20s)
- *        c) Sabotáž (zadej správné heslo k aktivaci bomby)
+ *        c) Sabotaz (zadej spravne heslo k aktivaci bomby)
  *            Submenu:  1. odjisti
- *            Aktivace: odjisti klíčem
+ *            Aktivace: odjisti klicem
  */
 
 // Pouzite knihovny:
@@ -43,11 +43,11 @@
 #include <LedControl.h>                    // Segmentovy displej
 #include <Keypad.h>                        // Klavesnice
 
-// Definice pozic digitalních vstupů:
-// Klávesnice:
+// Definice pozic digitalnich vstupu:
+// Klavesnice:
 const byte ROWS = 4;                       // 4 rady
 const byte COLS = 4;                       // 4 sloupce
-char hexaKeys[ROWS][COLS] = {              // Rozvrzení klavesnice
+char hexaKeys[ROWS][COLS] = {              // Rozvrzeni klavesnice
   {'1','2','3','a'}
   ,
   {'4','5','6','b'}
@@ -57,22 +57,22 @@ char hexaKeys[ROWS][COLS] = {              // Rozvrzení klavesnice
   {'*','0','#','d'}
 };
 
-const byte rowPins[ROWS] = {9, 8, 7, 6};   // Vstupní piny pro řady
-const byte colPins[COLS] = {5, 4, 3, 2};   // Vstupní piny pro sloupce
+const byte rowPins[ROWS] = {9, 8, 7, 6};   // Vstupni piny pro rady
+const byte colPins[COLS] = {5, 4, 3, 2};   // Vstupni piny pro sloupce
 
 Keypad customKeypad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS);
 
-// Tlačítka
-#define buttonPinRed  11                   // Vstupní pin červeného tlašítka
-#define buttonPinGreen  12                 // Vstupní pin zeleného tlašítka
-#define keySwitch  20                      // Vstupní pin klíčového spínače
+// Tlacitka
+#define buttonPinRed  11                   // Vstupni pin cerveneho tlacitka
+#define buttonPinGreen  12                 // Vstupni pin zeleneho tlacitka
+#define keySwitch  20                      // Vstupni pin klicoveho spinace
 
-// Definice pozic digitalních výstupů:
-#define piezoPin  13                       // Výstupní pin pro Buzzer
+// Definice pozic digitalnich vystupu:
+#define piezoPin  13                       // Vystupni pin pro Buzzer
 
 // RGB panel
-#define RGBPin  10                         // Datový pin RGB panelu
-#define NUM_LEDS  20                       // Počet LED na pásku (20 v sérii)
+#define RGBPin  10                         // Datovy pin RGB panelu
+#define NUM_LEDS  20                       // Pocet LED na pasku (20 v serii)
 // Parameter 1 = number of pixels in strip
 // Parameter 2 = pin number (most are valid)
 // Parameter 3 = pixel type flags, add together as needed:
@@ -81,7 +81,7 @@ Keypad customKeypad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS)
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, RGBPin, NEO_GRB + NEO_KHZ800);
 
 // LCD 16x2
-LiquidCrystal_I2C_Hangul lcd(0x3F,16,2);  // LCD (adresa, znaků, řádků)
+LiquidCrystal_I2C_Hangul lcd(0x3F,16,2);  // LCD (adresa, znaku, radku)
 
 // Navigation button variables
 int readKey;
@@ -133,20 +133,29 @@ byte passRectan[8] = {
 };
 
 // 7 segments LED display (MAX72XX)
-LedControl lc=LedControl(16,14,15,1);     // (DataIn, CLK, Load, počet MAX kontrolérů)
-unsigned long delaytime=100;              // Čekací doba pro obnovu displeje
+LedControl lc=LedControl(16,14,15,1);     // (DataIn, CLK, Load, pocet MAX kontroleru)
+unsigned long delaytime=100;              // cekaci doba pro obnovu displeje
 
 
 #define DS_MAIN 0x00
-#define DS_MAIN_MODE_A 0x01
+#define DS_MAIN_MODE_A 0x01  //
 #define DS_MAIN_MODE_B 0x02
 #define DS_MAIN_MODE_C 0x03
 #define DS_MAIN_MODE_A1 0x04
 #define DS_MAIN_MODE_A2 0x05
 #define DS_MAIN_MODE_A3 0x06
-#define DS_HRA_HESLO 0x07
-#define DS_HRA_HESLO_CHYBA 0x08
-#define DS_HRA_HESLO_OK 0x09
+#define DS_MAIN_MODE_A4 0x07
+#define DS_MAIN_MODE_B1 0x08
+#define DS_MAIN_MODE_B2 0x09
+#define DS_MAIN_MODE_C1 0x0A  //Zacni hru
+#define DS_MAIN_MODE_C2 0x0B  //Nastav cas na unik - zatim neumi
+#define DS_HRA_HESLO 0x0C
+#define DS_HRA_HESLO_CHYBA 0x0D
+#define DS_HRA_HESLO_OK 0x0E
+#define DS_HRA_ZNIC 0x0F
+#define DS_HRA_ZNIC_AKTIVACE 0x11
+#define DS_HRA_ZNIC_DEAKTIVACE 0x12
+
 #define DS_STRIN 0x80
 
 //cudliky pro pohyb v menu
@@ -211,8 +220,11 @@ void display_show(void) {
     case DS_MAIN_MODE_A2:
       lcd.print("Cas:  ");
       lcd.print(casovy_limit);
-      break; 
+      break;
     case DS_MAIN_MODE_A3:
+      lcd.print("Pocet pokusu:  ");
+      break;
+    case DS_MAIN_MODE_A4:
       lcd.print("Zacni hru");
       break;
     case DS_MAIN_MODE_B1:
@@ -222,18 +234,18 @@ void display_show(void) {
     case DS_MAIN_MODE_B2:
       lcd.print("Zacni hru");
       break; 
-    case DS_MAIN_MODE_C:
+    case DS_MAIN_MODE_C1:
       lcd.print("Zacni hru");
       break;
     case DS_HRA_HESLO:
       lcd.setCursor(0, 0);
-      lcd.print("HESLO pro deak-");
+      lcd.print("Heslo pro deak-");
       lcd.setCursor(0, 1);
       lcd.print("tivaci: ********");
       return;
     case DS_HRA_HESLO_CHYBA:
       lcd.setCursor(0, 0);
-      lcd.print("HESLO pro deak-");
+      lcd.print("Heslo pro deak-");
       lcd.setCursor(0, 1);
       lcd.print("tivaci: CHYBA!!");
       return;
@@ -244,6 +256,22 @@ void display_show(void) {
       lcd.setCursor(0, 1);
       lcd.print("Dobra prace! ;-)");
       return;
+    case DS_HRA_ZNIC:
+      lcd.setCursor(0, 0);
+      lcd.print("   AKTIVUJ!!!   ");
+      lcd.setCursor(0, 1);
+      lcd.print("(cervene tlac.) ");
+    case DS_HRA_ZNIC_AKTIVACE:
+      lcd.setCursor(0, 0);
+      lcd.print("  DEAKTIVUJ!!   ");
+      lcd.setCursor(0, 1);
+      lcd.print(" (zelene tlac.) ");
+    case DS_HRA_ZNIC_DEAKTIVACE:
+      lcd.setCursor(0, 0);
+               //0123456789ABCDEF
+      lcd.print("  DEAKTIVOVANO  ");
+      lcd.setCursor(0, 1);
+      lcd.print("Dobra prace! ;-)");
     default:
       lcd.setCursor(0, 1);
       lcd.print("Stiskni tlacitko");
@@ -268,7 +296,7 @@ void key_proc(void) {
           case DS_MAIN_MODE_A1: //bylo uspesne zadano heslo
             memcpy(heslo,strin,sizeof(heslo));
             break;
-          case DS_MAIN_MODE_A2: //byl zaan casovy limit
+          case DS_MAIN_MODE_A2: //byl zadan casovy limit
             casovy_limit=atoi(strin);
             break;
           case DS_HRA_HESLO:
@@ -303,13 +331,13 @@ void key_proc(void) {
   }
   
   //tady uz je to normalni, jak jsme se ucili ;-)
-  switch (display_st) {     // rozhoduje se podle stavu do kterého nového stavu přejdeme
-    case DS_MAIN:           // displej po zapnutí
-     display_st=DS_MAIN_MODE_A; // ať se děje co se děje deme do první nabídky
-     break; // a šlus
-    case DS_MAIN_MODE_A:  // začátek menu
-      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_B; // když čudl dolů, jdeme b nabídku
-      if (c==KEY_UP) display_st=DS_MAIN_MODE_C;     // když čudl dolů, jdeme C nabídku
+  switch (display_st) {     // rozhoduje se podle stavu do ktereho noveho stavu prejdeme
+    case DS_MAIN:           // displej po zapnuti
+     display_st=DS_MAIN_MODE_A; // at se deje co se deje deme do prvni nabidky
+     break; // a slus
+    case DS_MAIN_MODE_A:  // zacatek menu
+      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_B; // kdyz cudl dolu, jdeme b nabidku
+      if (c==KEY_UP) display_st=DS_MAIN_MODE_C;     // kdyz cudl dolu, jdeme C nabidku
       if (c==KEY_SELECT) display_st=DS_MAIN_MODE_A1; // vstupujeme do submenu
       break;
     case DS_MAIN_MODE_B:
@@ -323,8 +351,8 @@ void key_proc(void) {
       break;
     case DS_MAIN_MODE_A1:
       if (c==KEY_DOWN) display_st=DS_MAIN_MODE_A2;
-      if (c==KEY_UP) display_st=DS_MAIN_MODE_A3;
-      if (c==KEY_ESCAPE) display_st=DS_MAIN_MODE_A;  // utíkáme ze submenu do hlavního
+      if (c==KEY_UP) display_st=DS_MAIN_MODE_A4;
+      if (c==KEY_ESCAPE) display_st=DS_MAIN_MODE_A;  // utikame ze submenu do hlavniho
       if (c==KEY_SELECT) strin_init(DS_MAIN_MODE_A1,1,8);
       break;
     case DS_MAIN_MODE_A2:
@@ -333,12 +361,33 @@ void key_proc(void) {
       if (c==KEY_ESCAPE) display_st=DS_MAIN_MODE_A;
       if (c==KEY_SELECT) strin_init(DS_MAIN_MODE_A2,1,6);
       break;
-    case DS_MAIN_MODE_A3:
-      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_A1;
+    case DS_MAIN_MODE_A3: // zadej pocet moznych pokusu
+      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_A4;
       if (c==KEY_UP) display_st=DS_MAIN_MODE_A2;
+      if (c==KEY_ESCAPE) display_st=DS_MAIN_MODE_A;
+      if (c==KEY_SELECT) strin_init(DS_MAIN_MODE_A3,1,15);
+      break;
+    case DS_MAIN_MODE_A4:
+      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_A1;
+      if (c==KEY_UP) display_st=DS_MAIN_MODE_A3;
       if (c==KEY_ESCAPE) display_st=DS_MAIN_MODE_A;
       if (c==KEY_SELECT) {
         display_st=DS_HRA_HESLO;
+        casovadlo=casovy_limit*60;
+      }
+      break;
+    case DS_MAIN_MODE_B1:
+      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_B2;
+      if (c==KEY_UP) display_st=DS_MAIN_MODE_B2;
+      if (c==KEY_ESCAPE) display_st=DS_MAIN_MODE_B;
+      if (c==KEY_SELECT) strin_init(DS_MAIN_MODE_B1,1,6);
+      break;
+    case DS_MAIN_MODE_B2:
+      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_B1;
+      if (c==KEY_UP) display_st=DS_MAIN_MODE_B1;
+      if (c==KEY_ESCAPE) display_st=DS_MAIN_MODE_B;
+      if (c==KEY_SELECT) {
+        display_st=DS_HRA_ZNIC;
         casovadlo=casovy_limit*60;
       }
       break;
@@ -349,8 +398,17 @@ void key_proc(void) {
       display_st=DS_HRA_HESLO;
       break;
     case DS_HRA_HESLO_OK:
-      //tady asi uz nic, cekame na restart
+      // asi uz nic - cekame na restart
       break;
+    case DS_HRA_ZNIC:
+      display_st=DS_HRA_ZNIC_AKTIVACE;
+      break;
+    case DS_HRA_ZNIC_AKTIVACE:
+      display_st=DS_HRA_ZNIC_DEAKTIVACE;
+      break;
+    case DS_HRA_ZNIC_DEAKTIVACE:
+      // asi uz nic - cekame na restart
+    break;
   }
   display_show(); //hod to na displej
 }
@@ -389,9 +447,9 @@ void setup() {
   // Nastav vstupy
   pinMode(buttonPinRed, INPUT);   // Inicilazace tlacitka jako vstup
   pinMode(buttonPinGreen, INPUT); // Inicilazace prepinace jako vstup
-  pinMode(keySwitch, INPUT);      // Inicializace dolniho plovakoveho senzoru - PIN_PLOV1
+  pinMode(keySwitch, INPUT);      // Inicializace klicoveno spinace
   strip.begin();                  // Nastav na zacatek RGB pasku
-  strip.show();                   // Inicializuj všechny pixely na 'off'
+  strip.show();                   // Inicializuj vsechny pixely na 'off'
   
   lc.shutdown(0,false);
   /* Set the brightness to a medium values */
@@ -440,7 +498,8 @@ void loop() {
       secct-=1000; //odzitou vterinu zahodime a jedeme dal
       if (casovadlo!=0) {
         if ((--casovadlo)==0) {
-          //vybuch
+          // Fire(55,120,15); - proc nefunguje??
+          // delay(20000); - proc nefunguje??
         }
       }
       if ((++minct)>=60) { //pocitame minutu  
@@ -452,7 +511,7 @@ void loop() {
   key_proc();
 }
 
-// Ovládání RGB displeje - mód Oheň 
+// Ovladani RGB displeje - mod Ohen 
 void Fire(int Cooling, int Sparking, int SpeedDelay) {
   static byte heat[NUM_LEDS];
   int cooldown;
