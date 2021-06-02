@@ -69,6 +69,7 @@ Keypad customKeypad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS)
 
 // Definice pozic digitalnich vystupu:
 #define piezoPin  13                       // Vystupni pin pro Buzzer
+const int onDuration=200;                  // jak dlouho bude trvat ton
 
 // RGB panel
 #define RGBPin  10                         // Datovy pin RGB panelu
@@ -303,6 +304,11 @@ void key_proc(void) {
             if (memcmp(heslo,strin,sizeof(heslo))==0) {
               display_st=DS_HRA_HESLO_OK;
               casovadlo=0;
+              tone(piezoPin,4186, 100); // hraje C ton v pozadi po dobu 5 sekund
+              delay(150);
+              tone(piezoPin,4186, 100); // hraje C ton v pozadi po dobu 5 sekund
+              delay(150);
+              tone(piezoPin,4186, 100); // hraje C ton v pozadi po dobu 5 sekund
             } else {
               display_st=DS_HRA_HESLO_CHYBA;
             }
@@ -442,7 +448,7 @@ void setup() {
   display_show();
   
   // Nastav vystupy
-  //pinMode(piezoPin, OUTPUT);      // Inicializace buzzeru + integrovane LED jako vystup
+  pinMode(piezoPin, OUTPUT);      // Inicializace buzzeru + integrovane LED jako vystup
 
   // Nastav vstupy
   pinMode(buttonPinRed, INPUT);   // Inicilazace tlacitka jako vstup
@@ -460,9 +466,7 @@ void setup() {
 
 void ukaz_00_99(uint8_t pos, uint8_t value, uint8_t dots) {
   lc.setDigit(0,pos,value/10,dots);
-  delay(3);
   lc.setDigit(0,--pos,value%10,true);
-  delay(3);
 }
 
 void ukaz_cas(void) {
@@ -497,9 +501,9 @@ void loop() {
     if (secct>=1000) { //pokud mame vterinu
       secct-=1000; //odzitou vterinu zahodime a jedeme dal
       if (casovadlo!=0) {
+        tone(piezoPin,4186, onDuration); // hraje C ton v pozadi po dobu 'onDuration'
         if ((--casovadlo)==0) {
-          // Fire(55,120,15); - proc nefunguje??
-          // delay(20000); - proc nefunguje??
+        tone(piezoPin,4186, 5000); // hraje C ton v pozadi po dobu 5 sekund
         }
       }
       if ((++minct)>=60) { //pocitame minutu  
