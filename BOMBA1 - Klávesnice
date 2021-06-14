@@ -57,22 +57,24 @@ char hexaKeys[ROWS][COLS] = {              // Rozvrzeni klavesnice
   {'*','0','#','d'}
 };
 
-const byte rowPins[ROWS] = {9, 8, 7, 6};   // Vstupni piny pro rady
-const byte colPins[COLS] = {5, 4, 3, 2};   // Vstupni piny pro sloupce
+const byte rowPins[ROWS] = {6, 7, 8, 9};   // Vstupni piny pro rady
+const byte colPins[COLS] = {2, 3, 4, 5};   // Vstupni piny pro sloupce
 
 Keypad customKeypad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS);
 
 // Tlacitka
-#define buttonPinRed  11                   // Vstupni pin cerveneho tlacitka
-#define buttonPinGreen  12                 // Vstupni pin zeleneho tlacitka
-#define keySwitch  20                      // Vstupni pin klicoveho spinace
+#define buttonPinRed  20                   // Vstupni pin cerveneho tlacitka
+#define buttonPinGreen  19                 // Vstupni pin zeleneho tlacitka
+#define keySwitch  18                      // Vstupni pin klicoveho spinace
 
 // Definice pozic digitalnich vystupu:
 #define piezoPin  13                       // Vystupni pin pro Buzzer
-const int onDuration=200;                  // jak dlouho bude trvat ton
+const int onDuration=200;                  // jak dlouho bude trvat ton bazru
 
 // RGB panel
-#define RGBPin  10                         // Datovy pin RGB panelu
+#define RGBPin  14                         // Datovy pin RGB panelu
+
+//RGB pasek
 #define NUM_LEDS  20                       // Pocet LED na pasku (20 v serii)
 // Parameter 1 = number of pixels in strip
 // Parameter 2 = pin number (most are valid)
@@ -82,7 +84,7 @@ const int onDuration=200;                  // jak dlouho bude trvat ton
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, RGBPin, NEO_GRB + NEO_KHZ800);
 
 // LCD 16x2
-LiquidCrystal_I2C_Hangul lcd(0x3F,16,2);  // LCD (adresa, znaku, radku)
+LiquidCrystal_I2C_Hangul lcd(0x27,16,2);  // LCD (adresa, znaku, radku)
 
 // Navigation button variables
 int readKey;
@@ -134,386 +136,8 @@ byte passRectan[8] = {
 };
 
 // 7 segments LED display (MAX72XX)
-LedControl lc=LedControl(16,14,15,1);     // (DataIn, CLK, Load, pocet MAX kontroleru)
+LedControl lc=LedControl(12,10,11,1);     // (DataIn, CLK, Load, pocet MAX kontroleru)
 unsigned long delaytime=100;              // cekaci doba pro obnovu displeje
-
-
-#define DS_MAIN 0x00
-#define DS_MAIN_MODE_A 0x01  //
-#define DS_MAIN_MODE_B 0x02
-#define DS_MAIN_MODE_C 0x03
-#define DS_MAIN_MODE_A1 0x04
-#define DS_MAIN_MODE_A2 0x05
-#define DS_MAIN_MODE_A3 0x06
-#define DS_MAIN_MODE_A4 0x07
-#define DS_MAIN_MODE_B1 0x08
-#define DS_MAIN_MODE_B2 0x09
-#define DS_MAIN_MODE_C1 0x0A  //Zacni hru
-#define DS_MAIN_MODE_C2 0x0B  //Nastav cas na unik - zatim neumi
-#define DS_HRA_HESLO 0x0C
-#define DS_HRA_HESLO_CHYBA 0x0D
-#define DS_HRA_HESLO_OK 0x0E
-#define DS_HRA_ZNIC 0x0F
-#define DS_HRA_ZNIC_AKTIVACE 0x11
-#define DS_HRA_ZNIC_DEAKTIVACE 0x12
-
-#define DS_STRIN 0x80
-
-//cudliky pro pohyb v menu
-#define KEY_UP 'a'
-#define KEY_DOWN 'b'
-#define KEY_SELECT 'c'
-#define KEY_ESCAPE 'd'
-//cudliky pro zadavani retece
-#define KEY_STRIN_ENTER '*'
-#define KEY_STRIN_DELETE '#'
-#define KEY_STRIN_ESCAPE 'd'
-
-
-uint8_t display_st;
-uint8_t strin_st_mem; //stav, kam se vratime po zadani retezce
-uint8_t strin_pos; //pozice pro zobrazeni zadavaneho retezce
-uint8_t strin[9]; //pole znaku pro zadavani (osum znaku plus koncova nula, na tu nesmime zapomenout)
-uint8_t heslo[9];
-uint16_t casovy_limit;
-uint16_t secct; //pocitadlo pro generator vterin
-uint8_t minct; //pocitadlo pro generator minut
-uint8_t last_millis;
-uint16_t casovadlo; //casovani ve vterinach
-
-void strin_init(uint8_t stav, uint8_t radek, uint8_t sloupec) {
-  strin_st_mem=stav; //schovame si, do jakeho stavu se po zadani vratime
-  display_st=DS_STRIN; //budeme zadavat prvni pismenko
-  memset(strin,0,sizeof(strin)); //a vygumujeme to
-  strin_pos=(radek<<4)+sloupec; //vypocteme a schovame pozici, setrime, bajt nam na to staci 
-}
-
-void display_show(void) {
-  uint8_t i,c,p;
-  
-  if (display_st>=DS_STRIN) { //extra stavy pri zadavani retezce
-    lcd.setCursor(strin_pos&0xF, strin_pos>>4); //nastavime kursor na pozici prvniho zadavaneho znaku
-    p=display_st-DS_STRIN; //kde je kursor
-    for(i=0;i<(sizeof(strin));i++) { //budem zobrazovat, ikdyz tam muzou bejt nulovy znaky, to ale chceme
-      c=strin[i]; //vezmu pismenko
-      if (c<' ') c=' '; //pokud to je neco neviditelnyho (treba prave nula), tak z toho udelam mezeru
-      if (i==p) c=passRectan;
-      lcd.write(c); //a jeb s tim na displej
-    }
-    return; //a slus
-  }
-  lcd.clear();
-  lcd.setCursor(0, 1);
-  switch (display_st) {
-    case DS_MAIN_MODE_A:
-      lcd.print("Deaktivuj heslem");
-      break;  
-    case DS_MAIN_MODE_B:
-      lcd.print("Najdi a znic");
-      break;
-    case DS_MAIN_MODE_C:
-      lcd.print("Sabotaz");
-      break; 
-    case DS_MAIN_MODE_A1:
-      lcd.print("Heslo:  ");
-      lcd.print((char*)heslo);
-      break;
-    case DS_MAIN_MODE_A2:
-      lcd.print("Cas:  ");
-      lcd.print(casovy_limit);
-      break;
-    case DS_MAIN_MODE_A3:
-      lcd.print("Pocet pokusu:  ");
-      break;
-    case DS_MAIN_MODE_A4:
-      lcd.print("Zacni hru");
-      break;
-    case DS_MAIN_MODE_B1:
-      lcd.print("Cas:  ");
-      lcd.print(casovy_limit);
-      break;
-    case DS_MAIN_MODE_B2:
-      lcd.print("Zacni hru");
-      break; 
-    case DS_MAIN_MODE_C1:
-      lcd.print("Zacni hru");
-      break;
-    case DS_HRA_HESLO:
-      lcd.setCursor(0, 0);
-      lcd.print("Heslo pro deak-");
-      lcd.setCursor(0, 1);
-      lcd.print("tivaci: ********");
-      return;
-    case DS_HRA_HESLO_CHYBA:
-      lcd.setCursor(0, 0);
-      lcd.print("Heslo pro deak-");
-      lcd.setCursor(0, 1);
-      lcd.print("tivaci: CHYBA!!");
-      return;
-    case DS_HRA_HESLO_OK:
-      lcd.setCursor(0, 0);
-               //0123456789ABCDEF
-      lcd.print("  DEAKTIVOVANO  ");
-      lcd.setCursor(0, 1);
-      lcd.print("Dobra prace! ;-)");
-      return;
-    case DS_HRA_ZNIC:
-      lcd.setCursor(0, 0);
-      lcd.print("   AKTIVUJ!!!   ");
-      lcd.setCursor(0, 1);
-      lcd.print("(cervene tlac.) ");
-    case DS_HRA_ZNIC_AKTIVACE:
-      lcd.setCursor(0, 0);
-      lcd.print("  DEAKTIVUJ!!   ");
-      lcd.setCursor(0, 1);
-      lcd.print(" (zelene tlac.) ");
-    case DS_HRA_ZNIC_DEAKTIVACE:
-      lcd.setCursor(0, 0);
-               //0123456789ABCDEF
-      lcd.print("  DEAKTIVOVANO  ");
-      lcd.setCursor(0, 1);
-      lcd.print("Dobra prace! ;-)");
-    default:
-      lcd.setCursor(0, 1);
-      lcd.print("Stiskni tlacitko");
-      break;  
-  } 
-  lcd.setCursor(0, 0);
-  lcd.print("    Bombaaaa    ");
-}
-
-void key_proc(void) {
-  char c;
-  uint8_t i;
-  
-  c=customKeypad.getKey(); //precteme si cudlik
-  if (c==0) return; //kdyz je klid (neni zadnej cudlik), tak slus
-  if (display_st>=DS_STRIN) { //extra stavy pri zadavani retezce
-    i=display_st-DS_STRIN; //spocteme si index znaku
-    switch (c) {
-      case KEY_STRIN_ENTER:
-        display_st=strin_st_mem; //nastavime stav, kam se chceme vratit
-        switch (display_st) { //a podle nej take zpracujeme zadany retezec
-          case DS_MAIN_MODE_A1: //bylo uspesne zadano heslo
-            memcpy(heslo,strin,sizeof(heslo));
-            break;
-          case DS_MAIN_MODE_A2: //byl zadan casovy limit
-            casovy_limit=atoi(strin);
-            break;
-          case DS_HRA_HESLO:
-            if (memcmp(heslo,strin,sizeof(heslo))==0) {
-              display_st=DS_HRA_HESLO_OK;
-              casovadlo=0;
-              tone(piezoPin,4186, 100); // hraje C ton v pozadi po dobu 5 sekund
-              delay(150);
-              tone(piezoPin,4186, 100); // hraje C ton v pozadi po dobu 5 sekund
-              delay(150);
-              tone(piezoPin,4186, 100); // hraje C ton v pozadi po dobu 5 sekund
-            } else {
-              display_st=DS_HRA_HESLO_CHYBA;
-            }
-            break;
-        }
-        break;
-      case KEY_STRIN_ESCAPE:
-        memset(strin,0,sizeof(strin));
-        display_st=strin_st_mem;
-        break;
-      case KEY_STRIN_DELETE:
-        if (i>0) {
-          display_st--;
-          strin[i-1]=0;
-        }
-        break; //a slis      
-      default: //ostatni pismenka budem davat do bufiku
-        if (i<(sizeof(strin)-1)) { //pokud nejsme mimo
-          strin[i]=c; //vetkni pismenko
-          display_st++; //a priste budeme zadavat dalsi
-        }
-        break;
-    }
-    display_show(); //hod to na displej
-    return; //koncime
-  }
-  
-  //tady uz je to normalni, jak jsme se ucili ;-)
-  switch (display_st) {     // rozhoduje se podle stavu do ktereho noveho stavu prejdeme
-    case DS_MAIN:           // displej po zapnuti
-     display_st=DS_MAIN_MODE_A; // at se deje co se deje deme do prvni nabidky
-     break; // a slus
-    case DS_MAIN_MODE_A:  // zacatek menu
-      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_B; // kdyz cudl dolu, jdeme b nabidku
-      if (c==KEY_UP) display_st=DS_MAIN_MODE_C;     // kdyz cudl dolu, jdeme C nabidku
-      if (c==KEY_SELECT) display_st=DS_MAIN_MODE_A1; // vstupujeme do submenu
-      break;
-    case DS_MAIN_MODE_B:
-      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_C;
-      if (c==KEY_UP) display_st=DS_MAIN_MODE_A;
-      if (c==KEY_SELECT) display_st=DS_MAIN_MODE_B1; // vstupujeme do submenu
-      break;
-    case DS_MAIN_MODE_C:
-      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_A;
-      if (c==KEY_UP) display_st=DS_MAIN_MODE_B;
-      break;
-    case DS_MAIN_MODE_A1:
-      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_A2;
-      if (c==KEY_UP) display_st=DS_MAIN_MODE_A4;
-      if (c==KEY_ESCAPE) display_st=DS_MAIN_MODE_A;  // utikame ze submenu do hlavniho
-      if (c==KEY_SELECT) strin_init(DS_MAIN_MODE_A1,1,8);
-      break;
-    case DS_MAIN_MODE_A2:
-      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_A3;
-      if (c==KEY_UP) display_st=DS_MAIN_MODE_A1;
-      if (c==KEY_ESCAPE) display_st=DS_MAIN_MODE_A;
-      if (c==KEY_SELECT) strin_init(DS_MAIN_MODE_A2,1,6);
-      break;
-    case DS_MAIN_MODE_A3: // zadej pocet moznych pokusu
-      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_A4;
-      if (c==KEY_UP) display_st=DS_MAIN_MODE_A2;
-      if (c==KEY_ESCAPE) display_st=DS_MAIN_MODE_A;
-      if (c==KEY_SELECT) strin_init(DS_MAIN_MODE_A3,1,15);
-      break;
-    case DS_MAIN_MODE_A4:
-      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_A1;
-      if (c==KEY_UP) display_st=DS_MAIN_MODE_A3;
-      if (c==KEY_ESCAPE) display_st=DS_MAIN_MODE_A;
-      if (c==KEY_SELECT) {
-        display_st=DS_HRA_HESLO;
-        casovadlo=casovy_limit*60;
-      }
-      break;
-    case DS_MAIN_MODE_B1:
-      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_B2;
-      if (c==KEY_UP) display_st=DS_MAIN_MODE_B2;
-      if (c==KEY_ESCAPE) display_st=DS_MAIN_MODE_B;
-      if (c==KEY_SELECT) strin_init(DS_MAIN_MODE_B1,1,6);
-      break;
-    case DS_MAIN_MODE_B2:
-      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_B1;
-      if (c==KEY_UP) display_st=DS_MAIN_MODE_B1;
-      if (c==KEY_ESCAPE) display_st=DS_MAIN_MODE_B;
-      if (c==KEY_SELECT) {
-        display_st=DS_HRA_ZNIC;
-        casovadlo=casovy_limit*60;
-      }
-      break;
-    case DS_HRA_HESLO:
-      strin_init(DS_HRA_HESLO,1,8);
-      break;
-    case DS_HRA_HESLO_CHYBA:
-      display_st=DS_HRA_HESLO;
-      break;
-    case DS_HRA_HESLO_OK:
-      // asi uz nic - cekame na restart
-      break;
-    case DS_HRA_ZNIC:
-      display_st=DS_HRA_ZNIC_AKTIVACE;
-      break;
-    case DS_HRA_ZNIC_AKTIVACE:
-      display_st=DS_HRA_ZNIC_DEAKTIVACE;
-      break;
-    case DS_HRA_ZNIC_DEAKTIVACE:
-      // asi uz nic - cekame na restart
-    break;
-  }
-  display_show(); //hod to na displej
-}
- 
-void setup() {
-  // Pripravime si seriak
-  Serial.begin(9600);
-  Serial.print("Start\n");
-  
-  //inicializace promennych
-  memset(heslo,0,sizeof(heslo));
-  casovy_limit=1;
-  casovadlo=0;
-  last_millis=(uint8_t)millis(); //inicializace casovani
-  secct=0; //start generatoru vteriny
-  minct=0; //start generatoru minuty
-  
-  // Initializes and clears the LCD screen
-  lcd.init(); 
-  lcd.backlight();
-  lcd.begin(16, 2);
-  lcd.clear();
-  Serial.print("Inicializace LCD");
-
-  // Creates the byte for the custom characters
-  lcd.createChar(0, menuCursor);
-  lcd.createChar(1, upArrow);
-  lcd.createChar(2, downArrow);
-  lcd.createChar(3, passRectan);
-  display_st=0;
-  display_show();
-  
-  // Nastav vystupy
-  pinMode(piezoPin, OUTPUT);      // Inicializace buzzeru + integrovane LED jako vystup
-
-  // Nastav vstupy
-  pinMode(buttonPinRed, INPUT);   // Inicilazace tlacitka jako vstup
-  pinMode(buttonPinGreen, INPUT); // Inicilazace prepinace jako vstup
-  pinMode(keySwitch, INPUT);      // Inicializace klicoveno spinace
-  strip.begin();                  // Nastav na zacatek RGB pasku
-  strip.show();                   // Inicializuj vsechny pixely na 'off'
-  
-  lc.shutdown(0,false);
-  /* Set the brightness to a medium values */
-  lc.setIntensity(0,8);
-  /* and clear the display */
-  lc.clearDisplay(0);
-}
-
-void ukaz_00_99(uint8_t pos, uint8_t value, uint8_t dots) {
-  lc.setDigit(0,pos,value/10,dots);
-  lc.setDigit(0,--pos,value%10,true);
-}
-
-void ukaz_cas(void) {
-  uint8_t hod,min,sec,dots;
-  uint16_t x;
-  
-  x=casovadlo; 
-  if (x==0) {
-    lc.clearDisplay(0);
-    return;
-  }
-  x--; //chybela nam 0 a dojeti milisekund, tak to takhle vohneme a je to
-  sec=x%60;
-  x=x/60;
-  min=x%60;
-  x=x/60;
-  hod=x;
-  dots=x&1; //blikame teckama
-  ukaz_00_99(7,hod,dots);
-  ukaz_00_99(5,min,dots);
-  ukaz_00_99(3,sec,dots);
-  ukaz_00_99(1,(1000-secct)/10,false);
-}
-
-void loop() {
-  uint8_t ms;
-  
-  ms=((uint8_t)millis())-last_millis;
-  if (ms!=0) {
-    last_millis+=ms;
-    secct+=ms; //prihodime k pocitadlu vteriny
-    if (secct>=1000) { //pokud mame vterinu
-      secct-=1000; //odzitou vterinu zahodime a jedeme dal
-      if (casovadlo!=0) {
-        tone(piezoPin,4186, onDuration); // hraje C ton v pozadi po dobu 'onDuration'
-        if ((--casovadlo)==0) {
-        tone(piezoPin,4186, 5000); // hraje C ton v pozadi po dobu 5 sekund
-        }
-      }
-      if ((++minct)>=60) { //pocitame minutu  
-        minct=0; //a pocitadlo zase od zacatku
-      }
-    } 
-  }
-  ukaz_cas();
-  key_proc();
-}
 
 // Ovladani RGB displeje - mod Ohen 
 void Fire(int Cooling, int Sparking, int SpeedDelay) {
@@ -600,3 +224,466 @@ void setAll(byte red, byte green, byte blue) {
   }
   showStrip();
 }
+
+
+#define DS_MAIN 0x00
+#define DS_MAIN_MODE_A 0x01  //
+#define DS_MAIN_MODE_B 0x02
+#define DS_MAIN_MODE_C 0x03
+#define DS_MAIN_MODE_A1 0x04
+#define DS_MAIN_MODE_A2 0x05
+#define DS_MAIN_MODE_A3 0x06
+#define DS_MAIN_MODE_A4 0x07
+#define DS_MAIN_MODE_B1 0x08
+#define DS_MAIN_MODE_B2 0x09
+#define DS_MAIN_MODE_C1 0x0A  //Zacni hru
+#define DS_MAIN_MODE_C2 0x0B  //Nastav cas na unik - zatim neumi
+#define DS_HRA_HESLO 0x0C
+#define DS_HRA_HESLO_CHYBA 0x0D
+#define DS_HRA_HESLO_OK 0x0E
+#define DS_HRA_ZNIC 0x0F
+#define DS_HRA_ZNIC_AKTIVACE 0x11
+#define DS_HRA_ZNIC_DEAKTIVACE 0x12
+#define DS_HRA_VYBUCH 0x13
+
+#define DS_STRIN 0x80
+
+//cudliky pro pohyb v menu
+#define KEY_UP 'a'
+#define KEY_DOWN 'b'
+#define KEY_SELECT 'c'
+#define KEY_ESCAPE 'd'
+//cudliky pro zadavani retece
+#define KEY_STRIN_ENTER '*'
+#define KEY_STRIN_DELETE '#'
+#define KEY_STRIN_ESCAPE 'd'
+
+
+uint8_t display_st;
+uint8_t strin_st_mem; //stav, kam se vratime po zadani retezce
+uint8_t strin_pos; //pozice pro zobrazeni zadavaneho retezce
+uint8_t strin[9]; //pole znaku pro zadavani (osum znaku plus koncova nula, na tu nesmime zapomenout)
+uint8_t heslo[9];
+uint16_t casovy_limit;
+uint16_t secct; //pocitadlo pro generator vterin
+uint8_t minct; //pocitadlo pro generator minut
+uint8_t last_millis;
+uint16_t casovadlo; //casovani ve vterinach
+uint8_t autocudlik_kod;
+uint16_t autocudlik_milis;
+
+#define AUTOCUDLIK_FCIL 0x80  //priznak noveho samocudiku
+
+void autocudlik_proc(uint8_t ms) {
+  if (autocudlik_milis==0) return; //klid, nuda, slus
+  //Serial.print("autocudlik_proc ");
+  if (autocudlik_milis>ms) { //pokud jeste muzeme casovat
+    autocudlik_milis-=ms; //tak ubereme casove kvantum
+    //Serial.print(autocudlik_milis);
+    //Serial.print("\n");
+    return; //a slus
+  } //takze ted uz je jasny, ze nastal cas
+  autocudlik_kod|=AUTOCUDLIK_FCIL; //nahodim bitik, kterej rika, ze mame novej samocudlik (bitwise or)
+  //Serial.print("fcil\n");
+}
+
+void start_samocudlik(uint8_t kod, uint16_t prodleva) {
+  autocudlik_milis=prodleva;
+  autocudlik_kod=kod;
+  //Serial.print("start_samocudlik ");
+  //Serial.print(kod);
+  //Serial.print(',');
+  //Serial.print(prodleva);
+  //Serial.print("\n");
+}
+
+void nechci_samocudlik(void) {
+  autocudlik_milis=0;
+  autocudlik_kod=0;
+  //Serial.print("nechci_samocudlik\n");
+}
+
+void strin_init(uint8_t stav, uint8_t radek, uint8_t sloupec) {
+  strin_st_mem=stav; //schovame si, do jakeho stavu se po zadani vratime
+  display_st=DS_STRIN; //budeme zadavat prvni pismenko
+  memset(strin,0,sizeof(strin)); //a vygumujeme to
+  strin_pos=(radek<<4)+sloupec; //vypocteme a schovame pozici, setrime, bajt nam na to staci 
+}
+
+void display_show(void) {
+  uint8_t i,c,p;
+  
+  if (display_st>=DS_STRIN) { //extra stavy pri zadavani retezce
+    lcd.setCursor(strin_pos&0xF, strin_pos>>4); //nastavime kursor na pozici prvniho zadavaneho znaku
+    p=display_st-DS_STRIN; //kde je kursor
+    for(i=0;i<(sizeof(strin));i++) { //budem zobrazovat, ikdyz tam muzou bejt nulovy znaky, to ale chceme
+      c=strin[i]; //vezmu pismenko
+      if (c<' ') c=' '; //pokud to je neco neviditelnyho (treba prave nula), tak z toho udelam mezeru
+      if (i==p) c=passRectan;
+      lcd.write(c); //a jeb s tim na displej
+    }
+    return; //a slus
+  }
+  lcd.clear();
+  lcd.setCursor(0, 1);
+  switch (display_st) {
+    case DS_MAIN_MODE_A:
+      lcd.print("Deaktivuj heslem");
+      break;  
+    case DS_MAIN_MODE_B:
+      lcd.print("Najdi a znic");
+      break;
+    case DS_MAIN_MODE_C:
+      lcd.print("Sabotaz");
+      break; 
+    case DS_MAIN_MODE_A1:
+      lcd.print("Heslo:  ");
+      lcd.print((char*)heslo);
+      break;
+    case DS_MAIN_MODE_A2:
+      lcd.print("Cas:  ");
+      lcd.print(casovy_limit);
+      break;
+    case DS_MAIN_MODE_A3:
+      lcd.print("Pocet pokusu:  ");
+      break;
+    case DS_MAIN_MODE_A4:
+      lcd.print("Zacni hru");
+      break;
+    case DS_MAIN_MODE_B1:
+      lcd.print("Cas:  ");
+      lcd.print(casovy_limit);
+      break;
+    case DS_MAIN_MODE_B2:
+    case DS_MAIN_MODE_C1:
+      lcd.print("Zacni hru");
+      break; 
+    case DS_HRA_HESLO:
+      lcd.setCursor(0, 0);
+      lcd.print("Heslo pro deak-");
+      lcd.setCursor(0, 1);
+      lcd.print("tivaci: ********");
+      return;
+    case DS_HRA_HESLO_CHYBA:
+      lcd.setCursor(0, 0);
+      lcd.print("Heslo pro deak-");
+      lcd.setCursor(0, 1);
+      lcd.print("tivaci: CHYBA!!");
+      return;
+    case DS_HRA_HESLO_OK:
+      lcd.setCursor(0, 0);
+               //0123456789ABCDEF
+      lcd.print("  DEAKTIVOVANO  ");
+      lcd.setCursor(0, 1);
+      lcd.print("Dobra prace! ;-)");
+      return;
+    case DS_HRA_ZNIC:
+      lcd.setCursor(0, 0);
+      lcd.print("   AKTIVUJ!!!   ");
+      lcd.setCursor(0, 1);
+      lcd.print("(cervene tlac.) ");
+      return;
+    case DS_HRA_ZNIC_AKTIVACE:
+      lcd.setCursor(0, 0);
+      lcd.print("  DEAKTIVUJ!!   ");
+      lcd.setCursor(0, 1);
+      lcd.print(" (zelene tlac.) ");
+      return;
+    case DS_HRA_ZNIC_DEAKTIVACE:
+      lcd.setCursor(0, 0);
+               //0123456789ABCDEF
+      lcd.print("  DEAKTIVOVANO  ");
+      lcd.setCursor(0, 1);
+      lcd.print("Dobra prace! ;-)");
+      return;
+    case DS_HRA_VYBUCH:
+      lcd.setCursor(0, 0);
+      lcd.print("BUUUUM");
+      lcd.setCursor(0, 1);
+      lcd.print("RATATA");
+      return;    
+    default:
+      lcd.setCursor(0, 1);
+      lcd.print("Stiskni tlacitko");
+      break;  
+  } 
+  lcd.setCursor(0, 0);
+  lcd.print("    Bombaaaa    ");
+}
+
+void deaktivovano(void) { //tady budeme pokracovat
+  // - sem pridat zeleny RGB panel
+  for( int j = 0; j < NUM_LEDS; j++) {
+    setPixel(j, 0,255,0 );
+  }  
+  showStrip(); //a na zaver to zobrazime
+  for (int i=0;i<3;i++) { //los cyklos, cyklooonos
+    delay(100);
+    tone(piezoPin,4186); // hraje C ton v pozadi po dobu 5 sekund
+    delay(100);
+    noTone(piezoPin);
+  }
+}
+
+void vybuch(void) {
+  display_st=DS_HRA_VYBUCH; //prejdeme do stavu vybuch
+  display_show(); //hodime to na displej
+  tone(piezoPin,4186, 5000); // hraje C ton v pozadi po dobu 5 sekund
+}
+
+void vybuch_proc(void) {
+  if (display_st!=DS_HRA_VYBUCH) return; //nevybuchujeme, takze nic
+  Fire(55,120,15); //hor ohynku plapolej
+}
+
+void skoc_do_hry_xxx(void) {
+  display_st=DS_HRA_HESLO;
+  display_show();
+  strin_init(DS_HRA_HESLO,1,8);   
+}
+
+
+void key_proc(void) {
+  char c;
+  uint8_t i;
+  
+  if ((autocudlik_kod&AUTOCUDLIK_FCIL)!=0) { //nemame nahodou samocudlik?
+    c=autocudlik_kod&(~AUTOCUDLIK_FCIL); //chci vsechny bitiky, jen ne bitik vcil
+    autocudlik_kod=0; //a priste uz nic, jednou stacilo
+  } else { //neni samocudlik, tak se podivame na opravdove cudliky
+    c=customKeypad.getKey(); //precteme si cudlik
+  }
+  if (c==0) return; //kdyz je klid (neni zadnej cudlik), tak slus
+  nechci_samocudlik(); //zatim nechci samocudlik, musim si rict
+  if (display_st>=DS_STRIN) { //extra stavy pri zadavani retezce
+    i=display_st-DS_STRIN; //spocteme si index znaku
+    switch (c) {
+      case KEY_STRIN_ENTER:
+        display_st=strin_st_mem; //nastavime stav, kam se chceme vratit
+        switch (display_st) { //a podle nej take zpracujeme zadany retezec
+          case DS_MAIN_MODE_A1: //bylo uspesne zadano heslo
+            memcpy(heslo,strin,sizeof(heslo));
+            break;
+          case DS_MAIN_MODE_A2: //byl zadan casovy limit
+            casovy_limit=atoi(strin);
+            break;
+          case DS_HRA_HESLO:
+            if (memcmp(heslo,strin,sizeof(heslo))==0) {
+              display_st=DS_HRA_HESLO_OK;
+              casovadlo=0;
+              deaktivovano();
+            } else {
+              display_st=DS_HRA_HESLO_CHYBA;
+              start_samocudlik(KEY_SELECT,3000);
+            }
+            break;
+        }
+        break;
+      case KEY_STRIN_ESCAPE:
+        memset(strin,0,sizeof(strin));
+        display_st=strin_st_mem;
+        break;
+      case KEY_STRIN_DELETE:
+        if (i>0) {
+          display_st--;
+          strin[i-1]=0;
+        }
+        break; //a slis      
+      default: //ostatni pismenka budem davat do bufiku
+        if (i<(sizeof(strin)-1)) { //pokud nejsme mimo
+          strin[i]=c; //vetkni pismenko
+          display_st++; //a priste budeme zadavat dalsi
+        }
+        break;
+    }
+    display_show(); //hod to na displej
+    return; //koncime
+  }
+  
+  //tady uz je to normalni, jak jsme se ucili ;-)
+  switch (display_st) {     // rozhoduje se podle stavu do ktereho noveho stavu prejdeme
+    case DS_MAIN:           // displej po zapnuti
+     display_st=DS_MAIN_MODE_A; // at se deje co se deje deme do prvni nabidky
+     break; // a slus
+    case DS_MAIN_MODE_A:  // zacatek menu
+      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_B; // kdyz cudl dolu, jdeme b nabidku
+      if (c==KEY_UP) display_st=DS_MAIN_MODE_C;     // kdyz cudl dolu, jdeme C nabidku
+      if (c==KEY_SELECT) display_st=DS_MAIN_MODE_A1; // vstupujeme do submenu
+      break;
+    case DS_MAIN_MODE_B:
+      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_C;
+      if (c==KEY_UP) display_st=DS_MAIN_MODE_A;
+      if (c==KEY_SELECT) display_st=DS_MAIN_MODE_B1; // vstupujeme do submenu
+      break;
+    case DS_MAIN_MODE_C:
+      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_A;
+      if (c==KEY_UP) display_st=DS_MAIN_MODE_B;
+      break;
+    case DS_MAIN_MODE_A1:
+      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_A2;
+      if (c==KEY_UP) display_st=DS_MAIN_MODE_A4;
+      if (c==KEY_ESCAPE) display_st=DS_MAIN_MODE_A;  // utikame ze submenu do hlavniho
+      if (c==KEY_SELECT) strin_init(DS_MAIN_MODE_A1,1,8);
+      break;
+    case DS_MAIN_MODE_A2:
+      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_A3;
+      if (c==KEY_UP) display_st=DS_MAIN_MODE_A1;
+      if (c==KEY_ESCAPE) display_st=DS_MAIN_MODE_A;
+      if (c==KEY_SELECT) strin_init(DS_MAIN_MODE_A2,1,6);
+      break;
+    case DS_MAIN_MODE_A3: // zadej pocet moznych pokusu
+      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_A4;
+      if (c==KEY_UP) display_st=DS_MAIN_MODE_A2;
+      if (c==KEY_ESCAPE) display_st=DS_MAIN_MODE_A;
+      if (c==KEY_SELECT) strin_init(DS_MAIN_MODE_A3,1,15);
+      break;
+    case DS_MAIN_MODE_A4:
+      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_A1;
+      if (c==KEY_UP) display_st=DS_MAIN_MODE_A3;
+      if (c==KEY_ESCAPE) display_st=DS_MAIN_MODE_A;
+      if (c==KEY_SELECT) {
+        casovadlo=casovy_limit*60;
+        skoc_do_hry_xxx();
+      }
+      break;
+    case DS_MAIN_MODE_B1:
+      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_B2;
+      if (c==KEY_UP) display_st=DS_MAIN_MODE_B2;
+      if (c==KEY_ESCAPE) display_st=DS_MAIN_MODE_B;
+      if (c==KEY_SELECT) strin_init(DS_MAIN_MODE_B1,1,6);
+      break;
+    case DS_MAIN_MODE_B2:
+      if (c==KEY_DOWN) display_st=DS_MAIN_MODE_B1;
+      if (c==KEY_UP) display_st=DS_MAIN_MODE_B1;
+      if (c==KEY_ESCAPE) display_st=DS_MAIN_MODE_B;
+      if (c==KEY_SELECT) {
+        display_st=DS_HRA_ZNIC;
+        casovadlo=casovy_limit*60;
+      }
+      break;
+    case DS_HRA_HESLO:
+      skoc_do_hry_xxx();
+      break;
+    case DS_HRA_HESLO_CHYBA:
+      //display_st=DS_HRA_HESLO;
+      skoc_do_hry_xxx();
+      break;
+    case DS_HRA_HESLO_OK:
+      //asi uz nic - cekame na restart
+      break;
+    case DS_HRA_ZNIC:
+      display_st=DS_HRA_ZNIC_AKTIVACE;
+      break;
+    case DS_HRA_ZNIC_AKTIVACE:
+      display_st=DS_HRA_ZNIC_DEAKTIVACE;
+      break;
+    case DS_HRA_ZNIC_DEAKTIVACE:
+      // asi uz nic - cekame na restart
+      break;
+    case DS_HRA_VYBUCH:
+      //zatim nic
+      break;
+  }
+  display_show(); //hod to na displej
+}
+ 
+void setup() {
+  // Pripravime si seriak
+  Serial.begin(9600);
+  Serial.print("Start\n");
+  
+  //inicializace promennych
+  memset(heslo,0,sizeof(heslo));
+  casovy_limit=1;
+  casovadlo=0;
+  last_millis=(uint8_t)millis(); //inicializace casovani
+  secct=0; //start generatoru vteriny
+  minct=0; //start generatoru minuty
+  
+  // Initializes and clears the LCD screen
+  lcd.init(); 
+  lcd.backlight();
+  lcd.begin(16, 2);
+  lcd.clear();
+  Serial.print("Inicializace LCD");
+
+  // Creates the byte for the custom characters
+  lcd.createChar(0, menuCursor);
+  lcd.createChar(1, upArrow);
+  lcd.createChar(2, downArrow);
+  lcd.createChar(3, passRectan);
+  display_st=0;
+  display_show();
+  
+  // Nastav vystupy
+  pinMode(piezoPin, OUTPUT);      // Inicializace buzzeru + integrovane LED jako vystup
+
+  // Nastav vstupy
+  pinMode(buttonPinRed, INPUT);   // Inicilazace tlacitka jako vstup
+  pinMode(buttonPinGreen, INPUT); // Inicilazace prepinace jako vstup
+  pinMode(keySwitch, INPUT);      // Inicializace klicoveno spinace
+  strip.begin();                  // Nastav na zacatek RGB pasku
+  strip.show();                   // Inicializuj vsechny pixely na 'off'
+  
+  lc.shutdown(0,false);
+  /* Set the brightness to a medium values */
+  lc.setIntensity(0,8);
+  /* and clear the display */
+  lc.clearDisplay(0);
+}
+
+void ukaz_00_99(uint8_t pos, uint8_t value, uint8_t dots) {
+  lc.setDigit(0,pos,value/10,false);
+  delay(3);
+  lc.setDigit(0,--pos,value%10,dots);
+  delay(3);
+}
+
+void ukaz_cas(void) {
+  uint8_t hod,min,sec,dots;
+  uint16_t x;
+  
+  x=casovadlo; 
+  if (x==0) {
+    lc.clearDisplay(0);
+    return;
+  }
+  dots=x&1; //blikame teckama
+  x--; //chybela nam 0 a dojeti milisekund, tak to takhle vohneme a je to
+  sec=x%60;
+  x=x/60;
+  min=x%60;
+  x=x/60;
+  hod=x;
+  ukaz_00_99(7,hod,dots);
+  ukaz_00_99(5,min,dots);
+  ukaz_00_99(3,sec,dots);
+  ukaz_00_99(1,(1000-secct)/10,false);
+}
+
+void loop() {
+  uint8_t ms;
+  
+  ms=((uint8_t)millis())-last_millis;
+  if (ms!=0) {
+    autocudlik_proc(ms); //casovani samocudliku
+    last_millis+=ms;
+    secct+=ms; //prihodime k pocitadlu vteriny
+    if (secct>=1000) { //pokud mame vterinu
+      secct-=1000; //odzitou vterinu zahodime a jedeme dal
+      if (casovadlo!=0) {
+        tone(piezoPin,4186, onDuration); // hraje C ton v pozadi po dobu 'onDuration'
+        if ((--casovadlo)==0) {
+          vybuch(); //vybuchni
+        }
+      }
+      if ((++minct)>=60) { //pocitame minutu  
+        minct=0; //a pocitadlo zase od zacatku
+      }
+    } 
+  }
+  ukaz_cas();
+  key_proc();
+  vybuch_proc();
+}
+
