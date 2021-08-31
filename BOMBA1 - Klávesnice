@@ -63,9 +63,9 @@ const byte colPins[COLS] = {2, 3, 4, 5};   // Vstupni piny pro sloupce
 Keypad customKeypad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS);
 
 // Tlacitka
-#define buttonPinRed  20                   // Vstupni pin cerveneho tlacitka
-#define buttonPinGreen  19                 // Vstupni pin zeleneho tlacitka
-#define keySwitch  18                      // Vstupni pin klicoveho spinace
+#define buttonPinRed  21                   // Vstupni pin cerveneho tlacitka
+#define buttonPinGreen  20                 // Vstupni pin zeleneho tlacitka
+#define keySwitch  16                      // Vstupni pin klicoveho spinace
 
 // Definice pozic digitalnich vystupu:
 #define piezoPin  13                       // Vystupni pin pro Buzzer
@@ -254,9 +254,9 @@ void setAll(byte red, byte green, byte blue) {
 #define KEY_SELECT 'c'
 #define KEY_ESCAPE 'd'
 //cudliky pro zadavani retece
-#define KEY_STRIN_ENTER '*'
+#define KEY_STRIN_ENTER '*'  //(buttonPinGreen=HIGH);
 #define KEY_STRIN_DELETE '#'
-#define KEY_STRIN_ESCAPE 'd'
+#define KEY_STRIN_ESCAPE 'd'  //(buttonPinRed=HIGH);
 
 
 uint8_t display_st;
@@ -398,9 +398,9 @@ void display_show(void) {
       return;
     case DS_HRA_VYBUCH:
       lcd.setCursor(0, 0);
-      lcd.print("BUUUUM");
+      lcd.print(". . .BUUUM . . .");
       lcd.setCursor(0, 1);
-      lcd.print("RATATA");
+      lcd.print(" . .RATATATA. . ");
       return;    
     default:
       lcd.setCursor(0, 1);
@@ -594,7 +594,7 @@ void setup() {
   
   //inicializace promennych
   memset(heslo,0,sizeof(heslo));
-  casovy_limit=1;
+  casovy_limit=10;
   casovadlo=0;
   last_millis=(uint8_t)millis(); //inicializace casovani
   secct=0; //start generatoru vteriny
@@ -686,4 +686,3 @@ void loop() {
   key_proc();
   vybuch_proc();
 }
-
